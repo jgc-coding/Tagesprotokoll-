@@ -430,6 +430,15 @@ function addEntry() {
   const text = ta.value.trim();
   if (!text) return;
 
+  // Sofort visuelles Feedback: Button deaktivieren
+  const btn = document.querySelector('.add-btn');
+  btn.textContent = '✓';
+  btn.style.background = 'var(--green)';
+  setTimeout(() => {
+    btn.textContent = '＋';
+    btn.style.background = '';
+  }, 800);
+
   const now = new Date();
   entries.unshift({
     id:   Date.now(),
@@ -440,11 +449,18 @@ function addEntry() {
     iso:  now.toISOString()
   });
 
-  scheduleSave();
-  render();
   ta.value = '';
   ta.style.height = 'auto';
   ta.blur(); // Keyboard schließen auf Mobile
+
+  // Kurz warten bis Keyboard zu ist, dann rendern & scrollen
+  setTimeout(() => {
+    scheduleSave();
+    render();
+    // Zum Anfang der Liste scrollen damit neuer Eintrag sichtbar ist
+    const wrap = document.getElementById('entries-wrap');
+    wrap.scrollTop = 0;
+  }, 50);
 }
 
 function deleteEntry(id) {
