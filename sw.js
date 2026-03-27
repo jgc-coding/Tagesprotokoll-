@@ -1,5 +1,11 @@
-const CACHE = 'protokoll-v1';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const CACHE = 'protokoll-v2';
+const ASSETS = [
+  '/Tagesprotokoll-/',
+  '/Tagesprotokoll-/index.html',
+  '/Tagesprotokoll-/manifest.json',
+  '/Tagesprotokoll-/icon-192.png',
+  '/Tagesprotokoll-/icon-512.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
