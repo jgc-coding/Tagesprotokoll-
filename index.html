@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1612">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Protokoll">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tagesprotokoll</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f0e8;
+    --paper: #faf7f2;
+    --ink: #1a1612;
+    --muted: #9a8f82;
+    --accent: #c0392b;
+    --green: #2d6a4f;
+    --line: #e2ddd6;
+    --shadow: rgba(26,22,18,0.08);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: 'DM Mono', monospace;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    background-image:
+      radial-gradient(ellipse at 80% 0%, rgba(192,57,43,0.05) 0%, transparent 55%);
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 0.8rem 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 0.8rem;
+  }
+
+  .topbar-left { display: flex; align-items: baseline; gap: 0.8rem; }
+
+  .topbar h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.25rem;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .topbar-date {
+    font-size: 0.65rem;
+    color: rgba(245,240,232,0.55);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .topbar-clock {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 1.4rem;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+  }
+
+  /* ── INPUT AREA ── */
+  .input-wrap {
+    background: var(--paper);
+    border-bottom: 1.5px solid var(--line);
+    padding: 0.8rem 1rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-end;
+    margin-bottom: 0.6rem;
+  }
+
+  .input-time {
+    font-size: 0.7rem;
+    color: var(--accent);
+    white-space: nowrap;
+    padding-bottom: 0.55rem;
+    letter-spacing: 0.03em;
+    min-width: 40px;
+  }
+
+  #entry-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.92rem;
+    color: var(--ink);
+    resize: none;
+    line-height: 1.55;
+    min-height: 2.2rem;
+    max-height: 6rem;
+    -webkit-appearance: none;
+  }
+
+  #entry-input::placeholder { color: var(--muted); }
+
+  .add-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .add-btn:active { transform: scale(0.95); background: #a93226; }
+
+  /* Tags row */
+  .tags-row {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .tags-row::-webkit-scrollbar { display: none; }
+
+  .tag-btn {
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 20px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tag-btn.active {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+
+  /* ── SCROLL AREA ── */
+  .entries-wrap {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 1rem 1rem;
+  }
+
+  /* ── ENTRIES ── */
+  .entry {
+    display: flex;
+    gap: 0.8rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+    animation: slideIn 0.18s ease-out;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .entry:first-child { border-top: 1px solid var(--line); margin-top: 0.8rem; }
+
+  .entry-time {
+    font-size: 0.68rem;
+    color: var(--accent);
+    white-space: nowrap;
+    padding-top: 0.15rem;
+    min-width: 40px;
+    letter-spacing: 0.02em;
+  }
+
+  .entry-body { flex: 1; min-width: 0; }
+
+  .entry-tag {
+    display: inline-block;
+    font-size: 0.58rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.38rem;
+    border-radius: 2px;
+    margin-bottom: 0.25rem;
+    background: var(--line);
+    color: var(--muted);
+  }
+  .entry-tag.tag-todo     { background: #fef3cd; color: #856404; }
+  .entry-tag.tag-erledigt { background: #d4edda; color: #155724; }
+  .entry-tag.tag-info     { background: #d1ecf1; color: #0c5460; }
+  .entry-tag.tag-wichtig  { background: #f8d7da; color: #721c24; }
+
+  .entry-text {
+    font-size: 0.88rem;
+    line-height: 1.55;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--line);
+    font-size: 1rem;
+    padding: 0.1rem 0.3rem;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .del-btn:active { color: var(--accent); }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center;
+    padding: 3.5rem 1rem;
+    color: var(--muted);
+  }
+  .empty .big {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 1.3rem;
+    margin-bottom: 0.4rem;
+  }
+  .empty small { font-size: 0.72rem; }
+
+  /* ── BOTTOM BAR ── */
+  .bottombar {
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    padding: 0.6rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    font-size: 0.65rem;
+  }
+
+  .sync-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.4s;
+  }
+  .sync-dot.ok      { background: var(--green); }
+  .sync-dot.syncing { background: #e67e22; animation: blink 1s infinite; }
+  .sync-dot.err     { background: var(--accent); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  #sync-text { color: var(--muted); letter-spacing: 0.04em; flex: 1; }
+
+  .bottom-btn {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.63rem;
+    padding: 0.28rem 0.65rem;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+  }
+  .bottom-btn:active { border-color: var(--ink); color: var(--ink); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>Tagesprotokoll</h1>
+    <span class="topbar-date" id="top-date">—</span>
+  </div>
+  <div class="topbar-clock" id="top-clock">—</div>
+</div>
+
+<!-- INPUT -->
+<div class="input-wrap">
+  <div class="input-row">
+    <span class="input-time" id="input-time">—</span>
+    <textarea id="entry-input" rows="1"
+      placeholder="Was ist gerade passiert?"></textarea>
+    <button class="add-btn" onclick="addEntry()">＋</button>
+  </div>
+  <div class="tags-row">
+    <button class="tag-btn active" data-tag="">Kein Tag</button>
+    <button class="tag-btn" data-tag="todo">📋 To-do</button>
+    <button class="tag-btn" data-tag="erledigt">✓ Erledigt</button>
+    <button class="tag-btn" data-tag="info">ℹ Info</button>
+    <button class="tag-btn" data-tag="wichtig">⚑ Wichtig</button>
+  </div>
+</div>
+
+<!-- ENTRIES -->
+<div class="entries-wrap" id="entries-wrap">
+  <div class="empty" id="empty">
+    <div class="big">Noch nichts notiert</div>
+    <small>Schreib oben deinen ersten Eintrag</small>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottombar">
+  <div class="sync-dot" id="sync-dot"></div>
+  <span id="sync-text">Bereit</span>
+  <button class="bottom-btn" onclick="exportTxt()">↓ Export</button>
+  <button class="bottom-btn" onclick="clearAll()" style="color:var(--accent)">Leeren</button>
+</div>
+
+<script>
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
+let activeTag = '';
+let saveTimer = null;
+
+// ══════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════
+function tick() {
+  const n = new Date();
+  document.getElementById('top-clock').textContent =
+    n.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('top-date').textContent =
+    n.toLocaleDateString('de-DE', { weekday:'short', day:'numeric', month:'short' });
+  document.getElementById('input-time').textContent =
+    n.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+}
+tick();
+setInterval(tick, 10000);
+
+// ══════════════════════════════════════
+//  AUTO-RESIZE TEXTAREA
+// ══════════════════════════════════════
+const ta = document.getElementById('entry-input');
+ta.addEventListener('input', () => {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 96) + 'px';
+});
+
+// Enter = submit (Shift+Enter = Zeilenumbruch)
+ta.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addEntry(); }
+});
+
+// ══════════════════════════════════════
+//  TAGS
+// ══════════════════════════════════════
+document.querySelectorAll('.tag-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTag = btn.dataset.tag;
+  });
+});
+
+// ══════════════════════════════════════
+//  SAVE
+// ══════════════════════════════════════
+function save() {
+  try {
+    localStorage.setItem('proto_v2', JSON.stringify(entries));
+    const t = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+    setSync('ok', `Gespeichert · ${t}`);
+  } catch(e) {
+    setSync('err', 'Speichern fehlgeschlagen!');
+  }
+}
+
+function scheduleSave() {
+  setSync('syncing', 'Speichert…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 800);
+}
+
+function setSync(type, msg) {
+  const d = document.getElementById('sync-dot');
+  d.className = 'sync-dot' + (type === 'ok' ? ' ok' : type === 'syncing' ? ' syncing' : type === 'err' ? ' err' : '');
+  document.getElementById('sync-text').textContent = msg;
+}
+
+// ══════════════════════════════════════
+//  ENTRIES
+// ══════════════════════════════════════
+function addEntry() {
+  const text = ta.value.trim();
+  if (!text) return;
+
+  const now = new Date();
+  entries.unshift({
+    id:   Date.now(),
+    date: now.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }),
+    time: now.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }),
+    text,
+    tag:  activeTag,
+    iso:  now.toISOString()
+  });
+
+  scheduleSave();
+  render();
+  ta.value = '';
+  ta.style.height = 'auto';
+  ta.blur(); // Keyboard schließen auf Mobile
+}
+
+function deleteEntry(id) {
+  entries = entries.filter(e => e.id !== id);
+  scheduleSave();
+  render();
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+function render() {
+  const wrap  = document.getElementById('entries-wrap');
+  const empty = document.getElementById('empty');
+
+  if (!entries.length) {
+    wrap.innerHTML = '';
+    wrap.appendChild(empty);
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  wrap.innerHTML = '';
+
+  // Group by date
+  const groups = {};
+  entries.forEach(e => {
+    if (!groups[e.date]) groups[e.date] = [];
+    groups[e.date].push(e);
+  });
+
+  Object.keys(groups).forEach(date => {
+    // Date separator
+    const sep = document.createElement('div');
+    sep.style.cssText = 'font-size:0.65rem;color:var(--muted);letter-spacing:0.07em;text-transform:uppercase;padding:0.9rem 0 0.1rem;border-bottom:1px solid var(--line)';
+    const today = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+    sep.textContent = date === today ? 'Heute' : date;
+    wrap.appendChild(sep);
+
+    groups[date].forEach(e => {
+      const div = document.createElement('div');
+      div.className = 'entry';
+      div.innerHTML = `
+        <div class="entry-time">${e.time}</div>
+        <div class="entry-body">
+          ${e.tag ? `<span class="entry-tag tag-${e.tag}">${e.tag}</span>` : ''}
+          <div class="entry-text">${esc(e.text)}</div>
+        </div>
+        <button class="del-btn" onclick="deleteEntry(${e.id})">✕</button>`;
+      wrap.appendChild(div);
+    });
+  });
+}
+
+function clearAll() {
+  if (!entries.length) return;
+  if (confirm(`Alle ${entries.length} Einträge löschen?`)) {
+    entries = []; scheduleSave(); render();
+  }
+}
+
+function exportTxt() {
+  if (!entries.length) { alert('Keine Einträge.'); return; }
+  const date = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  let out = `TAGESPROTOKOLL — ${date}\n${'='.repeat(40)}\n\n`;
+  [...entries].reverse().forEach(e => {
+    out += `[${e.date} ${e.time}]${e.tag ? ' [' + e.tag.toUpperCase() + ']' : ''}\n${e.text}\n\n`;
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([out], { type: 'text/plain;charset=utf-8' }));
+  a.download = `protokoll_${date.replace(/\./g,'-')}.txt`;
+  a.click();
+}
+
+// ══════════════════════════════════════
+//  SERVICE WORKER
+// ══════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+render();
+setSync('ok', `${entries.length} Eintrag${entries.length !== 1 ? 'e' : ''} geladen`);
+</script>
+</body>
+</html>
