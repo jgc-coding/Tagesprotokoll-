@@ -94,6 +94,41 @@
   }
   .add-btn:active { transform: scale(0.92); }
 
+  /* QUICK ENTRIES */
+  .quick-wrap {
+    background: var(--bg);
+    border-bottom: 1.5px solid var(--line);
+    padding: 0.55rem 1rem;
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.45rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .quick-wrap::-webkit-scrollbar { display: none; }
+  .quick-btn {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.38rem 0.75rem;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .quick-btn:active { transform: scale(0.95); }
+  .quick-btn.flash {
+    background: var(--green) !important;
+    color: white !important;
+    border-color: var(--green) !important;
+  }
+
   /* ENTRIES */
   .entries-wrap {
     flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -178,6 +213,8 @@
     <button class="add-btn" id="add-btn" onclick="addEntry()">＋</button>
   </div>
 </div>
+
+<div class="quick-wrap" id="quick-wrap"></div>
 
 <div class="entries-wrap" id="entries-wrap">
   <div class="empty" id="empty-state">
@@ -399,7 +436,47 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
+// ─── QUICK ENTRIES ───────────────────────────────────
+const QUICK = [
+  'Ende der vorherigen Aktion',
+  'Wasserhahn an',
+  'Wasserhahn aus',
+  'Eigene Hände waschen',
+  'Tür aufmachen',
+];
+
+function buildQuickBar() {
+  const wrap = document.getElementById('quick-wrap');
+  QUICK.forEach(label => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-btn';
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      // Flash-Feedback
+      btn.classList.add('flash');
+      setTimeout(() => btn.classList.remove('flash'), 700);
+      // Direkt als Eintrag speichern
+      quickEntry(label);
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+function quickEntry(text) {
+  const now = new Date();
+  const entry = {
+    id:   Date.now(),
+    date: now.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }),
+    time: now.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }),
+    text, iso: now.toISOString()
+  };
+  entries.unshift(entry);
+  scheduleSave();
+  injectEntry(entry);
+}
+
 // ─── INIT ────────────────────────────────────────────
+buildQuickBar();
 renderAll();
 const n = entries.length;
 setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
