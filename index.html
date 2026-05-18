@@ -370,10 +370,53 @@
   <button class="bottom-btn danger" onclick="clearAll()">Leeren</button>
 </div>
 
+<!-- Whisper-Transkription (lokal im Browser über transformers.js) -->
+<script type="module">
+  const MODEL_ID = 'Xenova/whisper-base';
+
+  let _pipelinePromise = null;
+  async function getPipeline(onProgress) {
+    if (!_pipelinePromise) {
+      _pipelinePromise = (async () => {
+        const { pipeline, env } = await import(
+          'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm'
+        );
+        env.allowLocalModels = false;
+        env.useBrowserCache  = true;
+        return await pipeline('automatic-speech-recognition', MODEL_ID, {
+          progress_callback: onProgress,
+          quantized: true,
+        });
+      })();
+    }
+    return _pipelinePromise;
+  }
+
+  window.whisperPreload = (cb) => getPipeline(cb).then(() => true).catch(() => false);
+
+  window.whisperTranscribe = async (blob, onProgress) => {
+    const transcriber = await getPipeline(onProgress);
+    const arrayBuf = await blob.arrayBuffer();
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    // 16 kHz mono ist das, was Whisper erwartet
+    const audioCtx = new Ctx({ sampleRate: 16000 });
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+    const samples = audioBuffer.getChannelData(0);
+    audioCtx.close();
+    const result = await transcriber(samples, {
+      language: 'german',
+      task: 'transcribe',
+      chunk_length_s: 30,
+      stride_length_s: 5,
+    });
+    return (result && result.text ? result.text : '').trim();
+  };
+</script>
+
 <script>
 // ─── APP VERSION ─────────────────────────────────────
 // Bei jedem Deploy um 1 erhöhen!
-const APP_VERSION = 8;
+const APP_VERSION = 9;
 
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
@@ -424,13 +467,10 @@ function setSync(type, msg) {
 
 // ─── ADD ENTRY ───────────────────────────────────────
 function addEntry() {
-  // Falls Diktat noch läuft, vorher sauber stoppen und State leeren,
-  // damit das spätere onend nicht den gerade gespeicherten Text zurückschreibt
-  const micBtn = document.getElementById('mic-btn');
-  if (micBtn && micBtn.classList.contains('recording')) {
-    stopMic();
-    micBaseText     = '';
-    micSessionFinal = '';
+  // Während einer laufenden Whisper-Verarbeitung keine Eingabe übernehmen
+  if (micState === 'recording' || micState === 'transcribing' || micState === 'loading') {
+    alert('Bitte warten — Aufnahme/Transkription läuft noch.');
+    return;
   }
 
   const text = ta.value.trim();
@@ -885,75 +925,32 @@ function quickEntry(text) {
   injectEntry(entry);
 }
 
-// ─── SPRACHEINGABE (Web Speech API) ──────────────────
-// Modell: eine Aufnahme = ein Diktat. Kein Auto-Neustart.
-// Auto-Neustart führte dazu, dass der Recognizer das letzte Stück Audio
-// des vorigen Satzes nochmal verarbeitet → doppelte Wörter.
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition     = null;
-let micBaseText     = '';    // Textarea-Inhalt zu Beginn der aktuellen Aufnahme
-let micSessionFinal = '';    // Final-Text der aktuellen Session
-let micActive       = false;
+// ─── SPRACHEINGABE (Whisper, lokal im Browser) ───────
+// MediaRecorder nimmt Audio auf, transformers.js (im Modul-Script) lädt
+// Whisper-Base nach und transkribiert. Kein Auto-Stopp — der Nutzer
+// entscheidet, wann die Aufnahme zu Ende ist.
+
+let mediaStream  = null;
+let mediaRecorder = null;
+let recordChunks  = [];
+let micState      = 'idle'; // 'idle' | 'loading' | 'recording' | 'transcribing'
 
 function initMic() {
   const btn = document.getElementById('mic-btn');
-  if (!SR) {
+  const supported =
+    !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
+    !!window.MediaRecorder &&
+    !!(window.AudioContext || window.webkitAudioContext);
+  if (!supported) {
     btn.classList.add('unsupported');
-    btn.title = 'Spracheingabe in diesem Browser nicht unterstützt';
+    btn.title = 'Aufnahme in diesem Browser nicht unterstützt';
     btn.onclick = () => alert(
-      'Spracheingabe wird in diesem Browser nicht unterstützt.\n' +
-      'Bitte Chrome, Edge oder Safari verwenden.'
+      'Audio-Aufnahme wird in diesem Browser nicht unterstützt.\n' +
+      'Bitte Chrome, Edge oder Safari (aktuelle Version) verwenden.'
     );
     return;
   }
-  recognition = new SR();
-  recognition.lang = 'de-DE';
-  recognition.continuous     = true;  // mehrere Sätze pro Aufnahme, wo unterstützt
-  recognition.interimResults = true;
-
-  recognition.onresult = (e) => {
-    let final = '', interim = '';
-    let prevFinalNorm = '';
-    for (let i = 0; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) {
-        // Direkte Duplikate in der Results-Liste filtern (Chrome-Eigenheit)
-        const norm = t.trim().toLowerCase();
-        if (norm && norm === prevFinalNorm) continue;
-        final += t;
-        prevFinalNorm = norm;
-      } else {
-        interim += t;
-      }
-    }
-    micSessionFinal = final;
-    ta.value = joinSpoken(micBaseText, micSessionFinal, interim);
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
-  };
-
-  recognition.onerror = (e) => {
-    if      (e.error === 'not-allowed')  setSync('err', 'Mikrofon-Zugriff verweigert');
-    else if (e.error === 'no-speech')    setSync('ok',  'Keine Sprache erkannt');
-    else if (e.error === 'network')      setSync('err', 'Offline — Spracherkennung braucht Internet');
-    else if (e.error === 'aborted')      { /* normal beim stop() */ }
-    else                                 setSync('err', 'Fehler: ' + e.error);
-  };
-
-  recognition.onend = () => {
-    if (micSessionFinal.trim()) {
-      micBaseText = joinSpoken(micBaseText, micSessionFinal);
-      ta.value = micBaseText;
-      micSessionFinal = '';
-    }
-    micActive = false;
-    paintMic(false);
-    setSync('ok', 'Fertig — Mikro erneut tippen für weiter');
-  };
-}
-
-function joinSpoken(...parts) {
-  return parts.map(s => (s || '').trim()).filter(Boolean).join(' ');
+  btn.title = 'Diktieren (Whisper, lokal)';
 }
 
 function paintMic(on) {
@@ -962,31 +959,133 @@ function paintMic(on) {
 }
 
 function toggleMic() {
-  if (!recognition) return;
-  if (micActive) stopMic();
-  else           startMic();
+  if (micState === 'recording')      stopRecording();
+  else if (micState === 'idle')      startRecording();
+  // Während 'loading' oder 'transcribing': Tap ignorieren
 }
 
-function startMic() {
-  micBaseText     = ta.value.trim();
-  micSessionFinal = '';
-  micActive       = true;
+async function startRecording() {
+  micState = 'loading';
+  setSync('syncing', 'Mikrofon wird angefragt…');
   try {
-    recognition.start();
-    paintMic(true);
-    setSync('syncing', 'Höre zu… (Mikro tippen zum Stoppen)');
-    ta.focus();
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch(e) {
-    micActive = false;
-    setSync('err', 'Konnte Mikrofon nicht starten');
-    paintMic(false);
+    setSync('err', 'Mikrofon-Zugriff verweigert');
+    micState = 'idle';
+    return;
+  }
+
+  // Modell parallel zur Aufnahme im Hintergrund vorladen (kein Block für den Start)
+  if (typeof window.whisperPreload === 'function') {
+    window.whisperPreload(handleModelProgress);
+  }
+
+  recordChunks = [];
+  const mime = pickAudioMime();
+  try {
+    mediaRecorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime })
+                         : new MediaRecorder(mediaStream);
+  } catch(e) {
+    setSync('err', 'Aufnahme konnte nicht gestartet werden');
+    cleanupStream();
+    micState = 'idle';
+    return;
+  }
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) recordChunks.push(e.data);
+  };
+  mediaRecorder.onstop = onRecordingStopped;
+  mediaRecorder.start();
+  micState = 'recording';
+  paintMic(true);
+  setSync('syncing', 'Aufnahme läuft — Mikro tippen zum Stoppen');
+  ta.focus();
+}
+
+function stopRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+  setSync('syncing', 'Aufnahme wird beendet…');
+  try { mediaRecorder.stop(); } catch(_) {}
+  // onstop kümmert sich um den Rest
+}
+
+async function onRecordingStopped() {
+  cleanupStream();
+  paintMic(false);
+
+  if (!recordChunks.length) {
+    setSync('ok', 'Nichts aufgenommen');
+    micState = 'idle';
+    return;
+  }
+  micState = 'transcribing';
+  setSync('syncing', 'Transkribiere…');
+
+  const blob = new Blob(recordChunks, { type: recordChunks[0].type || 'audio/webm' });
+  recordChunks = [];
+
+  if (typeof window.whisperTranscribe !== 'function') {
+    setSync('err', 'Whisper-Modul nicht geladen');
+    micState = 'idle';
+    return;
+  }
+
+  let text = '';
+  try {
+    text = await window.whisperTranscribe(blob, handleModelProgress);
+  } catch(e) {
+    console.error(e);
+    setSync('err', 'Transkription fehlgeschlagen');
+    micState = 'idle';
+    return;
+  }
+
+  if (text) {
+    const existing = ta.value.trim();
+    ta.value = existing ? existing + ' ' + text : text;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
+    setSync('ok', 'Fertig');
+  } else {
+    setSync('ok', 'Kein Text erkannt');
+  }
+  micState = 'idle';
+}
+
+function handleModelProgress(p) {
+  if (!p) return;
+  if (p.status === 'progress' && typeof p.progress === 'number') {
+    setSync('syncing', `Lädt Sprachmodell… ${Math.round(p.progress)} %`);
+  } else if (p.status === 'download') {
+    setSync('syncing', `Lädt ${p.file || 'Modell'}…`);
+  } else if (p.status === 'ready') {
+    setSync('ok', 'Sprachmodell bereit');
   }
 }
 
+function pickAudioMime() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+  ];
+  for (const m of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return '';
+}
+
+function cleanupStream() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+}
+
+// Kompatibilitäts-Aliase für alte Aufrufstellen (z.B. addEntry)
 function stopMic() {
-  micActive = false;
-  try { recognition.stop(); } catch(_) {}
-  // onend kümmert sich um Commit + UI-Reset
+  if (micState === 'recording') stopRecording();
 }
 
 // ─── VIEW TOGGLE: ENTRIES <-> ARCHIVE ────────────────
