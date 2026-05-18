@@ -94,6 +94,28 @@
   }
   .add-btn:active { transform: scale(0.92); }
 
+  .mic-btn {
+    background: var(--paper); color: var(--ink);
+    border: 1px solid var(--line);
+    width: 2.4rem; height: 2.4rem; line-height: 1;
+    cursor: pointer; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mic-btn svg { width: 1.05rem; height: 1.05rem; }
+  .mic-btn:active { transform: scale(0.92); }
+  .mic-btn.recording {
+    background: var(--accent); color: white; border-color: var(--accent);
+    animation: micpulse 1.3s ease-out infinite;
+  }
+  .mic-btn.unsupported { opacity: 0.35; cursor: not-allowed; }
+  @keyframes micpulse {
+    0%   { box-shadow: 0 0 0 0   rgba(192,57,43,0.45); }
+    70%  { box-shadow: 0 0 0 10px rgba(192,57,43,0);    }
+    100% { box-shadow: 0 0 0 0   rgba(192,57,43,0);    }
+  }
+
   /* QUICK ENTRIES */
   .quick-wrap {
     background: var(--bg);
@@ -251,6 +273,11 @@
   <div class="input-row">
     <span class="input-time" id="input-time">—</span>
     <textarea id="entry-input" rows="1" placeholder="Was ist gerade passiert?"></textarea>
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()" aria-label="Diktieren" title="Diktieren (Spracheingabe)">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+      </svg>
+    </button>
     <button class="add-btn" id="add-btn" onclick="addEntry()">＋</button>
   </div>
 </div>
@@ -328,6 +355,10 @@ function setSync(type, msg) {
 
 // ─── ADD ENTRY ───────────────────────────────────────
 function addEntry() {
+  // Falls Diktat noch läuft, vorher sauber stoppen
+  const micBtn = document.getElementById('mic-btn');
+  if (micBtn && micBtn.classList.contains('recording')) stopMic();
+
   const text = ta.value.trim();
   if (!text) return;
 
@@ -683,8 +714,99 @@ function quickEntry(text) {
   injectEntry(entry);
 }
 
+// ─── SPRACHEINGABE (Web Speech API) ──────────────────
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition  = null;
+let micBaseText  = '';   // Textarea-Inhalt zu Beginn der Aufnahme
+let micUserStop  = false; // Unterscheidet manuellen Stop vom Auto-End
+
+function initMic() {
+  const btn = document.getElementById('mic-btn');
+  if (!SR) {
+    btn.classList.add('unsupported');
+    btn.title = 'Spracheingabe in diesem Browser nicht unterstützt';
+    btn.onclick = () => alert(
+      'Spracheingabe wird in diesem Browser nicht unterstützt.\n' +
+      'Bitte Chrome, Edge oder Safari verwenden.'
+    );
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = 'de-DE';
+  recognition.continuous     = true;
+  recognition.interimResults = true;
+
+  recognition.onresult = (e) => {
+    let finalT = '', interimT = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalT += t;
+      else                      interimT += t;
+    }
+    if (finalT) {
+      micBaseText = (micBaseText + ' ' + finalT.trim()).trim();
+    }
+    ta.value = (micBaseText + (interimT ? ' ' + interimT : '')).trim();
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
+  };
+
+  recognition.onerror = (e) => {
+    micUserStop = true;
+    if      (e.error === 'not-allowed')  setSync('err', 'Mikrofon-Zugriff verweigert');
+    else if (e.error === 'no-speech')    setSync('ok',  'Keine Sprache erkannt');
+    else if (e.error === 'network')      setSync('err', 'Offline — Spracherkennung braucht Internet');
+    else                                 setSync('err', 'Fehler: ' + e.error);
+    paintMic(false);
+  };
+
+  recognition.onend = () => {
+    // Safari beendet oft nach kurzer Pause — automatisch fortsetzen,
+    // außer der Nutzer hat selbst gestoppt.
+    if (!micUserStop) {
+      try { recognition.start(); return; } catch(_) { /* fall through */ }
+    }
+    paintMic(false);
+  };
+}
+
+function paintMic(on) {
+  const btn = document.getElementById('mic-btn');
+  btn.classList.toggle('recording', on);
+}
+
+function toggleMic() {
+  if (!recognition) return;
+  const btn = document.getElementById('mic-btn');
+  if (btn.classList.contains('recording')) stopMic();
+  else                                     startMic();
+}
+
+function startMic() {
+  micBaseText = ta.value.trim();
+  micUserStop = false;
+  try {
+    recognition.start();
+    paintMic(true);
+    setSync('syncing', 'Höre zu… (Mikro tippen zum Stoppen)');
+    ta.focus();
+  } catch(e) {
+    setSync('err', 'Konnte Mikrofon nicht starten');
+    paintMic(false);
+  }
+}
+
+function stopMic() {
+  micUserStop = true;
+  try { recognition.stop(); } catch(_) {}
+  paintMic(false);
+  const n = entries.length;
+  setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
+}
+
 // ─── INIT ────────────────────────────────────────────
 buildQuickBar();
+initMic();
 renderAll();
 const n = entries.length;
 setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
