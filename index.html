@@ -257,6 +257,60 @@
     margin-top: 0.15rem;
     letter-spacing: 0;
   }
+
+  /* ARCHIVE VIEW */
+  body.view-archive .input-wrap,
+  body.view-archive .quick-wrap { display: none; }
+
+  .archive-header {
+    padding: 1rem 0 0.4rem;
+    border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 0.6rem;
+  }
+  .archive-title {
+    font-family: 'Fraunces', serif; font-weight: 600;
+    font-size: 1.1rem; letter-spacing: -0.01em;
+  }
+  .archive-stats {
+    font-size: 0.63rem; color: var(--muted);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .archive-item {
+    padding: 0.85rem 0; border-bottom: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 0.35rem;
+  }
+  .archive-row1 {
+    display: flex; align-items: center; gap: 0.55rem;
+    font-size: 0.68rem; letter-spacing: 0.03em;
+  }
+  .archive-format {
+    background: var(--ink); color: var(--bg);
+    padding: 0.12rem 0.45rem; border-radius: 2px;
+    font-weight: 500; letter-spacing: 0.06em;
+  }
+  .archive-format.pdf { background: var(--accent); }
+  .archive-format.md  { background: var(--green); }
+  .archive-date  { color: var(--muted); }
+  .archive-size  { color: var(--muted); margin-left: auto; }
+  .archive-name {
+    font-size: 0.85rem; color: var(--ink); word-break: break-all;
+  }
+  .archive-actions { display: flex; gap: 0.4rem; margin-top: 0.2rem; }
+  .archive-actions button {
+    background: var(--paper); border: 1px solid var(--line);
+    color: var(--ink); font-family: 'DM Mono', monospace;
+    font-size: 0.65rem; padding: 0.3rem 0.7rem; border-radius: 2px;
+    cursor: pointer; letter-spacing: 0.03em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .archive-actions button.danger {
+    color: var(--accent); border-color: rgba(192,57,43,0.3);
+  }
+  .archive-actions button:active { transform: scale(0.96); }
+  .bottom-btn.active {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
 </style>
 </head>
 <body>
@@ -294,6 +348,7 @@
 <div class="bottombar">
   <div class="sync-dot" id="sync-dot"></div>
   <span id="sync-text">Bereit</span>
+  <button class="bottom-btn" id="archive-btn" onclick="toggleView()">📁 Archiv</button>
   <div class="export-wrap">
     <button class="bottom-btn" id="export-btn" onclick="toggleExportMenu(event)">↓ Export</button>
     <div class="export-menu" id="export-menu">
@@ -497,6 +552,90 @@ function clearAll() {
   }
 }
 
+// ─── ARCHIV (IndexedDB) ──────────────────────────────
+const DB_NAME = 'proto_db';
+const DB_STORE = 'exports';
+let _dbPromise = null;
+let _archiveAvailable = true;
+
+function db() {
+  if (_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('no-indexeddb')); return; }
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(DB_STORE, { keyPath: 'id', autoIncrement: true });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+  _dbPromise.catch(() => { _archiveAvailable = false; });
+  return _dbPromise;
+}
+
+async function archivePut(item) {
+  try {
+    const d = await db();
+    await new Promise((resolve, reject) => {
+      const tx = d.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).add(item);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => reject(tx.error);
+    });
+    if (currentView === 'archive') renderArchive();
+  } catch (e) {
+    console.warn('Archiv nicht verfügbar:', e);
+  }
+}
+
+async function archiveList() {
+  try {
+    const d = await db();
+    return await new Promise((resolve, reject) => {
+      const items = [];
+      const tx = d.transaction(DB_STORE, 'readonly');
+      tx.objectStore(DB_STORE).openCursor(null, 'prev').onsuccess = (e) => {
+        const c = e.target.result;
+        if (c) { items.push(c.value); c.continue(); }
+        else resolve(items);
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { return []; }
+}
+
+async function archiveGet(id) {
+  const d = await db();
+  return await new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+async function archiveDelete(id) {
+  const d = await db();
+  await new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = () => reject(tx.error);
+  });
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+function fmtArchiveDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }) +
+         ' ' +
+         d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+}
+
 // ─── EXPORT HELPERS ──────────────────────────────────
 function groupByDate(list) {
   const groups = {};
@@ -549,7 +688,12 @@ function exportTxt() {
       out += `[${e.time}]  ${wrapped}\n\n`;
     });
   });
-  download(`protokoll_${todayStamp()}.txt`, '﻿' + out, 'text/plain;charset=utf-8');
+  const filename = `protokoll_${todayStamp()}.txt`;
+  const content  = '﻿' + out;
+  const mime     = 'text/plain;charset=utf-8';
+  download(filename, content, mime);
+  archivePut({ kind:'txt', filename, content, mime, ts: Date.now(),
+               size: new Blob([content]).size, entryCount: entries.length });
   closeExportMenu();
 }
 
@@ -567,7 +711,11 @@ function exportMd() {
     });
     out += `\n`;
   });
-  download(`protokoll_${todayStamp()}.md`, out, 'text/markdown;charset=utf-8');
+  const filename = `protokoll_${todayStamp()}.md`;
+  const mime     = 'text/markdown;charset=utf-8';
+  download(filename, out, mime);
+  archivePut({ kind:'md', filename, content: out, mime, ts: Date.now(),
+               size: new Blob([out]).size, entryCount: entries.length });
   closeExportMenu();
 }
 
@@ -654,6 +802,10 @@ function exportPdf() {
   w.document.open();
   w.document.write(html);
   w.document.close();
+
+  archivePut({ kind:'pdf', filename: `protokoll_${stamp}.html`, content: html,
+               mime: 'text/html;charset=utf-8', ts: Date.now(),
+               size: new Blob([html]).size, entryCount: entries.length });
   closeExportMenu();
 }
 
@@ -802,6 +954,93 @@ function stopMic() {
   paintMic(false);
   const n = entries.length;
   setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
+}
+
+// ─── VIEW TOGGLE: ENTRIES <-> ARCHIVE ────────────────
+let currentView = 'entries';
+
+function toggleView() {
+  if (currentView === 'entries') showArchive();
+  else                           showEntries();
+}
+
+function showEntries() {
+  currentView = 'entries';
+  document.body.classList.remove('view-archive');
+  document.getElementById('archive-btn').classList.remove('active');
+  document.getElementById('archive-btn').textContent = '📁 Archiv';
+  renderAll();
+}
+
+async function showArchive() {
+  currentView = 'archive';
+  document.body.classList.add('view-archive');
+  const btn = document.getElementById('archive-btn');
+  btn.classList.add('active');
+  btn.textContent = '← Zurück';
+  await renderArchive();
+}
+
+async function renderArchive() {
+  const wrap = document.getElementById('entries-wrap');
+  wrap.innerHTML = '';
+
+  const items = await archiveList();
+  const totalSize = items.reduce((s, x) => s + (x.size || 0), 0);
+
+  const head = document.createElement('div');
+  head.className = 'archive-header';
+  head.innerHTML =
+    `<span class="archive-title">Archiv</span>` +
+    `<span class="archive-stats">${items.length} ${items.length === 1 ? 'Datei' : 'Dateien'} · ${fmtSize(totalSize)}</span>`;
+  wrap.appendChild(head);
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.innerHTML =
+      '<div class="big">Noch keine Exporte</div>' +
+      '<small>Exportiere ein Protokoll, es landet hier automatisch.</small>';
+    wrap.appendChild(empty);
+    return;
+  }
+
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'archive-item';
+    const label = item.kind === 'pdf' ? 'PDF' : item.kind.toUpperCase();
+    const openLabel = item.kind === 'pdf' ? '↗ Öffnen / Drucken' : '↓ Speichern';
+    div.innerHTML =
+      `<div class="archive-row1">` +
+        `<span class="archive-format ${item.kind}">${label}</span>` +
+        `<span class="archive-date">${fmtArchiveDate(item.ts)}</span>` +
+        `<span class="archive-size">${fmtSize(item.size || 0)}</span>` +
+      `</div>` +
+      `<div class="archive-name">${esc(item.filename)}</div>` +
+      `<div class="archive-actions">` +
+        `<button onclick="openArchive(${item.id})">${openLabel}</button>` +
+        `<button class="danger" onclick="deleteArchive(${item.id})">Löschen</button>` +
+      `</div>`;
+    wrap.appendChild(div);
+  });
+}
+
+async function openArchive(id) {
+  const item = await archiveGet(id);
+  if (!item) return;
+  if (item.kind === 'pdf') {
+    const w = window.open('', '_blank');
+    if (!w) { alert('Popup blockiert.'); return; }
+    w.document.open(); w.document.write(item.content); w.document.close();
+  } else {
+    download(item.filename, item.content, item.mime);
+  }
+}
+
+async function deleteArchive(id) {
+  if (!confirm('Diesen Archiv-Eintrag löschen?')) return;
+  await archiveDelete(id);
+  await renderArchive();
 }
 
 // ─── INIT ────────────────────────────────────────────
