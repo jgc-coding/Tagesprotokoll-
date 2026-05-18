@@ -868,9 +868,13 @@ function quickEntry(text) {
 
 // ─── SPRACHEINGABE (Web Speech API) ──────────────────
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition  = null;
-let micBaseText  = '';   // Textarea-Inhalt zu Beginn der Aufnahme
-let micUserStop  = false; // Unterscheidet manuellen Stop vom Auto-End
+let recognition       = null;
+let micAccumulated    = '';    // Textarea-Inhalt + bestätigte Texte vergangener Sessions
+let micSessionFinal   = '';    // Final-Text der aktuellen Erkennungs-Session
+let micPrevTail       = '';    // Letzte Worte der vorherigen Session (für Dedupe)
+let micDedupePending  = false; // True direkt nach Auto-Neustart, bis Dedupe griff
+let micUserStop       = false;
+let micRestartTimer   = null;
 
 function initMic() {
   const btn = document.getElementById('mic-btn');
@@ -889,16 +893,31 @@ function initMic() {
   recognition.interimResults = true;
 
   recognition.onresult = (e) => {
-    let finalT = '', interimT = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+    // Final-Text der gesamten Session jedes Mal neu aus allen Results aufbauen
+    // (nicht inkrementell anhängen — vermeidet doppelte Einträge wenn der Browser
+    // dasselbe Ergebnis mehrfach liefert).
+    let final = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) finalT += t;
-      else                      interimT += t;
+      if (e.results[i].isFinal) final   += t;
+      else                      interim += t;
     }
-    if (finalT) {
-      micBaseText = (micBaseText + ' ' + finalT.trim()).trim();
+
+    // Direkt nach Auto-Neustart: Überlappung mit dem Ende der vorigen Session
+    // entfernen (der Recognizer fängt manchmal die letzten Worte erneut ein).
+    if (micDedupePending && micPrevTail) {
+      const fDedup = stripTailOverlap(final,   micPrevTail);
+      const iDedup = stripTailOverlap(interim, micPrevTail);
+      if (fDedup !== final || iDedup !== interim) {
+        final = fDedup; interim = iDedup;
+        micDedupePending = false; // erfolgreich dedupliziert, nicht nochmal versuchen
+      }
     }
-    ta.value = (micBaseText + (interimT ? ' ' + interimT : '')).trim();
+    // Sobald ein Final-Result vorliegt, beenden wir den Dedupe-Versuch
+    if (final.trim()) micDedupePending = false;
+
+    micSessionFinal = final;
+    ta.value = joinSpoken(micAccumulated, micSessionFinal, interim);
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
   };
@@ -908,18 +927,62 @@ function initMic() {
     if      (e.error === 'not-allowed')  setSync('err', 'Mikrofon-Zugriff verweigert');
     else if (e.error === 'no-speech')    setSync('ok',  'Keine Sprache erkannt');
     else if (e.error === 'network')      setSync('err', 'Offline — Spracherkennung braucht Internet');
+    else if (e.error === 'aborted')      { /* Normal beim stop() — ignorieren */ }
     else                                 setSync('err', 'Fehler: ' + e.error);
     paintMic(false);
   };
 
   recognition.onend = () => {
-    // Safari beendet oft nach kurzer Pause — automatisch fortsetzen,
-    // außer der Nutzer hat selbst gestoppt.
+    // Session-Ende: bestätigten Text in Accumulated übernehmen, Tail merken
+    if (micSessionFinal.trim()) {
+      micAccumulated = joinSpoken(micAccumulated, micSessionFinal);
+      micPrevTail    = micSessionFinal;
+    }
+    micSessionFinal = '';
+
     if (!micUserStop) {
-      try { recognition.start(); return; } catch(_) { /* fall through */ }
+      // Kleine Pause vor dem Neustart, damit der Audio-Puffer „atmen" kann
+      micDedupePending = true;
+      clearTimeout(micRestartTimer);
+      micRestartTimer = setTimeout(() => {
+        try { recognition.start(); }
+        catch(_) { paintMic(false); }
+      }, 150);
+      return;
     }
     paintMic(false);
+    micPrevTail = '';
+    micDedupePending = false;
   };
+}
+
+function joinSpoken(...parts) {
+  return parts.map(s => (s || '').trim()).filter(Boolean).join(' ');
+}
+
+// Suche die längste Folge von Wörtern, mit der `text` beginnt
+// und die gleichzeitig am Ende von `tail` steht — und entferne sie aus `text`.
+function stripTailOverlap(text, tail) {
+  if (!text || !tail) return text;
+  const norm = s => s.toLowerCase().replace(/[.,!?;:"'„"»«()\-]/g, '');
+  const tailWords = norm(tail).split(/\s+/).filter(Boolean);
+  const textToks  = text.trim().split(/\s+/).filter(Boolean);
+  if (!tailWords.length || !textToks.length) return text;
+  const textLow = textToks.map(norm);
+
+  const maxK = Math.min(tailWords.length, textToks.length);
+  let bestK = 0;
+  for (let k = maxK; k >= 1; k--) {
+    const tailEnd   = tailWords.slice(-k);
+    const textStart = textLow.slice(0, k);
+    let match = true;
+    for (let i = 0; i < k; i++) {
+      if (tailEnd[i] !== textStart[i]) { match = false; break; }
+    }
+    if (match) { bestK = k; break; }
+  }
+  if (!bestK) return text;
+  return textToks.slice(bestK).join(' ');
 }
 
 function paintMic(on) {
@@ -935,8 +998,11 @@ function toggleMic() {
 }
 
 function startMic() {
-  micBaseText = ta.value.trim();
-  micUserStop = false;
+  micAccumulated   = ta.value.trim();
+  micSessionFinal  = '';
+  micPrevTail      = '';
+  micDedupePending = false;
+  micUserStop      = false;
   try {
     recognition.start();
     paintMic(true);
@@ -950,8 +1016,11 @@ function startMic() {
 
 function stopMic() {
   micUserStop = true;
+  clearTimeout(micRestartTimer);
   try { recognition.stop(); } catch(_) {}
   paintMic(false);
+  micPrevTail      = '';
+  micDedupePending = false;
   const n = entries.length;
   setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
 }
