@@ -1,4 +1,4 @@
-const CACHE = 'protokoll-v3';
+const CACHE = 'protokoll-v4';
 const ASSETS = [
   '/Tagesprotokoll-/',
   '/Tagesprotokoll-/index.html',
@@ -19,8 +19,27 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// HTML: network-first, damit App-Updates sofort durchkommen.
+// Andere Assets: cache-first, damit App offline lauffähig bleibt.
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
-  );
+  const req = e.request;
+  if (req.method !== 'GET') return;
+
+  const isHtml = req.mode === 'navigate' ||
+                 req.destination === 'document' ||
+                 (req.headers.get('accept') || '').includes('text/html');
+
+  if (isHtml) {
+    e.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy));
+        return res;
+      }).catch(() =>
+        caches.match(req).then(r => r || caches.match('/Tagesprotokoll-/index.html'))
+      )
+    );
+  } else {
+    e.respondWith(caches.match(req).then(r => r || fetch(req)));
+  }
 });
