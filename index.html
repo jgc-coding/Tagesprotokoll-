@@ -194,6 +194,47 @@
   }
   .bottom-btn:active { border-color: var(--ink); color: var(--ink); }
   .bottom-btn.danger { color: var(--accent); border-color: rgba(192,57,43,0.3); }
+
+  /* EXPORT MENU */
+  .export-wrap { position: relative; flex-shrink: 0; }
+  .export-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 0.4rem);
+    right: 0;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px var(--shadow);
+    overflow: hidden;
+    min-width: 170px;
+    z-index: 10;
+  }
+  .export-menu.open { display: block; }
+  .export-menu button {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink);
+    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+    letter-spacing: 0.02em;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .export-menu button:last-child { border-bottom: none; }
+  .export-menu button:active { background: var(--bg); }
+  .export-menu .hint {
+    display: block;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+    letter-spacing: 0;
+  }
 </style>
 </head>
 <body>
@@ -226,7 +267,14 @@
 <div class="bottombar">
   <div class="sync-dot" id="sync-dot"></div>
   <span id="sync-text">Bereit</span>
-  <button class="bottom-btn" onclick="exportTxt()">↓ Export</button>
+  <div class="export-wrap">
+    <button class="bottom-btn" id="export-btn" onclick="toggleExportMenu(event)">↓ Export</button>
+    <div class="export-menu" id="export-menu">
+      <button onclick="exportMd()">Markdown<span class="hint">.md · Obsidian, GitHub …</span></button>
+      <button onclick="exportPdf()">PDF / Drucken<span class="hint">via Browser-Druckdialog</span></button>
+      <button onclick="exportTxt()">Text<span class="hint">.txt · mit UTF-8 BOM</span></button>
+    </div>
+  </div>
   <button class="bottom-btn danger" onclick="clearAll()">Leeren</button>
 </div>
 
@@ -418,18 +466,177 @@ function clearAll() {
   }
 }
 
+// ─── EXPORT HELPERS ──────────────────────────────────
+function groupByDate(list) {
+  const groups = {};
+  const order  = [];
+  list.forEach(e => {
+    if (!groups[e.date]) { groups[e.date] = []; order.push(e.date); }
+    groups[e.date].push(e);
+  });
+  return { groups, order };
+}
+function wrapLine(line, width) {
+  if (line.length <= width) return line;
+  const out = [];
+  while (line.length > width) {
+    let cut = line.lastIndexOf(' ', width);
+    if (cut <= 0) cut = width;
+    out.push(line.slice(0, cut));
+    line = line.slice(line[cut] === ' ' ? cut + 1 : cut);
+  }
+  out.push(line);
+  return out.join('\n');
+}
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(filename, content, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function todayStamp() {
+  return new Date().toLocaleDateString('de-DE',
+    { day:'2-digit', month:'2-digit', year:'numeric' }).replace(/\./g,'-');
+}
+
+// ─── EXPORT: TXT ─────────────────────────────────────
+// UTF-8 BOM für Windows-Notepad, Zeilen auf ~65 Zeichen umgebrochen
 function exportTxt() {
   if (!entries.length) { alert('Keine Einträge.'); return; }
-  const date = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
-  let out = `TAGESPROTOKOLL — ${date}\n${'='.repeat(40)}\n\n`;
-  [...entries].reverse().forEach(e => {
-    out += `[${e.date} ${e.time}]\n${e.text}\n\n`;
+  const { groups, order } = groupByDate([...entries].reverse());
+  let out = `TAGESPROTOKOLL\n${'='.repeat(40)}\n\n`;
+  order.forEach(date => {
+    out += `${date}\n${'-'.repeat(date.length)}\n\n`;
+    groups[date].forEach(e => {
+      const wrapped = wrapLine(e.text, 65).replace(/\n/g, '\n         ');
+      out += `[${e.time}]  ${wrapped}\n\n`;
+    });
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([out], { type:'text/plain;charset=utf-8' }));
-  a.download = `protokoll_${date.replace(/\./g,'-')}.txt`;
-  a.click();
+  download(`protokoll_${todayStamp()}.txt`, '﻿' + out, 'text/plain;charset=utf-8');
+  closeExportMenu();
 }
+
+// ─── EXPORT: MARKDOWN ────────────────────────────────
+function exportMd() {
+  if (!entries.length) { alert('Keine Einträge.'); return; }
+  const { groups, order } = groupByDate([...entries].reverse());
+  let out = `# Tagesprotokoll\n\n_Stand: ${new Date().toLocaleDateString('de-DE',
+    { weekday:'long', day:'2-digit', month:'long', year:'numeric' })}_\n\n`;
+  order.forEach(date => {
+    out += `## ${date}\n\n`;
+    groups[date].forEach(e => {
+      const text = e.text.replace(/\n/g, '  \n  ');
+      out += `- **${e.time}** — ${text}\n`;
+    });
+    out += `\n`;
+  });
+  download(`protokoll_${todayStamp()}.md`, out, 'text/markdown;charset=utf-8');
+  closeExportMenu();
+}
+
+// ─── EXPORT: PDF (Druckfenster) ──────────────────────
+function exportPdf() {
+  if (!entries.length) { alert('Keine Einträge.'); return; }
+  const stamp = todayStamp();
+  const { groups, order } = groupByDate([...entries].reverse());
+
+  let body = '';
+  order.forEach(date => {
+    body += `<h2>${escHtml(date)}</h2>\n`;
+    groups[date].forEach(e => {
+      body += `<div class="entry">` +
+              `<span class="t">${escHtml(e.time)}</span>` +
+              `<span class="txt">${escHtml(e.text).replace(/\n/g,'<br>')}</span>` +
+              `</div>\n`;
+    });
+  });
+
+  const html =
+`<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
+<title>Tagesprotokoll ${escHtml(stamp)}</title>
+<style>
+  @page { margin: 2cm; size: A4; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #1a1612; line-height: 1.6;
+    max-width: 17cm; margin: 0 auto; padding: 1.5cm 1.2cm;
+    background: #f5f0e8;
+  }
+  .sheet { background: #faf7f2; padding: 1.8cm 1.6cm; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }
+  h1 { font-size: 22pt; font-weight: 600; margin: 0 0 0.15cm; letter-spacing: -0.01em; }
+  .meta {
+    font-size: 8.5pt; color: #9a8f82; margin-bottom: 1.2cm;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  h2 {
+    font-size: 12pt; font-weight: 600; margin: 0.9cm 0 0.35cm;
+    padding-bottom: 0.12cm; border-bottom: 1px solid #ddd6cc;
+    letter-spacing: 0.04em; text-transform: uppercase; color: #6b6055;
+  }
+  .entry {
+    display: flex; gap: 0.7cm; padding: 0.2cm 0;
+    page-break-inside: avoid; align-items: baseline;
+  }
+  .t {
+    font-family: 'Courier New', monospace; font-size: 9pt;
+    color: #c0392b; min-width: 1.6cm; flex-shrink: 0;
+  }
+  .txt { flex: 1; font-size: 11pt; word-wrap: break-word; }
+  .printbar {
+    position: fixed; top: 1rem; right: 1rem; display: flex; gap: 0.5rem;
+    font-family: -apple-system, system-ui, sans-serif; z-index: 100;
+  }
+  .printbar button {
+    background: #1a1612; color: #fff; border: none;
+    padding: 0.65rem 1.1rem; font-size: 0.85rem;
+    cursor: pointer; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .printbar button.secondary { background: #fff; color: #1a1612; border: 1px solid #ccc; }
+  @media print {
+    body { background: #fff; padding: 0; max-width: none; }
+    .sheet { box-shadow: none; padding: 0; background: #fff; }
+    .printbar { display: none; }
+  }
+</style></head>
+<body>
+<div class="printbar">
+  <button onclick="window.print()">Als PDF speichern / drucken</button>
+  <button class="secondary" onclick="window.close()">Schließen</button>
+</div>
+<div class="sheet">
+  <h1>Tagesprotokoll</h1>
+  <div class="meta">Stand ${escHtml(new Date().toLocaleDateString('de-DE',
+    { weekday:'long', day:'2-digit', month:'long', year:'numeric' }))} · ${entries.length} Einträge</div>
+  ${body}
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('Popup blockiert. Bitte Popups für diese Seite erlauben.'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  closeExportMenu();
+}
+
+// ─── EXPORT MENU ─────────────────────────────────────
+function toggleExportMenu(ev) {
+  if (ev) ev.stopPropagation();
+  document.getElementById('export-menu').classList.toggle('open');
+}
+function closeExportMenu() {
+  document.getElementById('export-menu').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.export-wrap')) closeExportMenu();
+});
 
 // ─── SERVICE WORKER ──────────────────────────────────
 if ('serviceWorker' in navigator) {
