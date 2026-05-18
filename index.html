@@ -217,6 +217,15 @@
   .bottom-btn:active { border-color: var(--ink); color: var(--ink); }
   .bottom-btn.danger { color: var(--accent); border-color: rgba(192,57,43,0.3); }
 
+  .app-version {
+    color: var(--muted);
+    font-size: 0.58rem;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+    flex-shrink: 0;
+    margin: 0 0.25rem;
+    white-space: nowrap;
+  }
   /* EXPORT MENU */
   .export-wrap { position: relative; flex-shrink: 0; }
   .export-menu {
@@ -348,6 +357,7 @@
 <div class="bottombar">
   <div class="sync-dot" id="sync-dot"></div>
   <span id="sync-text">Bereit</span>
+  <span class="app-version" id="app-version" title="App-Version">v–</span>
   <button class="bottom-btn" id="archive-btn" onclick="toggleView()">📁 Archiv</button>
   <div class="export-wrap">
     <button class="bottom-btn" id="export-btn" onclick="toggleExportMenu(event)">↓ Export</button>
@@ -361,6 +371,10 @@
 </div>
 
 <script>
+// ─── APP VERSION ─────────────────────────────────────
+// Bei jedem Deploy um 1 erhöhen!
+const APP_VERSION = 7;
+
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
 let saveTimer = null;
@@ -1113,6 +1127,7 @@ async function deleteArchive(id) {
 }
 
 // ─── INIT ────────────────────────────────────────────
+document.getElementById('app-version').textContent = 'v' + APP_VERSION;
 buildQuickBar();
 initMic();
 renderAll();
