@@ -207,6 +207,14 @@
     color: var(--muted); font-size: 0.63rem; letter-spacing: 0.04em;
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Während Modell-Download / Aufnahme / Transkription: Buttons ausblenden,
+     Status-Text bekommt die volle Breite und wird prominent */
+  .bottombar.busy .bottom-btn,
+  .bottombar.busy .app-version,
+  .bottombar.busy .export-wrap { display: none; }
+  .bottombar.busy #sync-text {
+    font-size: 0.8rem; color: var(--ink); letter-spacing: 0.02em;
+  }
   .bottom-btn {
     background: none; border: 1px solid var(--line); color: var(--muted);
     font-family: 'DM Mono', monospace; font-size: 0.62rem;
@@ -375,6 +383,7 @@
   const MODEL_ID = 'Xenova/whisper-base';
 
   let _pipelinePromise = null;
+  let _pipelineReady   = false;
   async function getPipeline(onProgress) {
     if (!_pipelinePromise) {
       _pipelinePromise = (async () => {
@@ -383,15 +392,18 @@
         );
         env.allowLocalModels = false;
         env.useBrowserCache  = true;
-        return await pipeline('automatic-speech-recognition', MODEL_ID, {
+        const p = await pipeline('automatic-speech-recognition', MODEL_ID, {
           progress_callback: onProgress,
           quantized: true,
         });
-      })();
+        _pipelineReady = true;
+        return p;
+      })().catch(err => { _pipelinePromise = null; throw err; });
     }
     return _pipelinePromise;
   }
 
+  window.whisperIsReady = () => _pipelineReady;
   window.whisperPreload = (cb) => getPipeline(cb).then(() => true).catch(() => false);
 
   window.whisperTranscribe = async (blob, onProgress) => {
@@ -416,7 +428,7 @@
 <script>
 // ─── APP VERSION ─────────────────────────────────────
 // Bei jedem Deploy um 1 erhöhen!
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
@@ -459,10 +471,11 @@ function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(save, 800);
 }
-function setSync(type, msg) {
+function setSync(type, msg, busy) {
   document.getElementById('sync-dot').className = 'sync-dot' +
     (type==='ok' ? ' ok' : type==='syncing' ? ' syncing' : type==='err' ? ' err' : '');
   document.getElementById('sync-text').textContent = msg;
+  document.querySelector('.bottombar').classList.toggle('busy', !!busy);
 }
 
 // ─── ADD ENTRY ───────────────────────────────────────
@@ -958,26 +971,37 @@ function paintMic(on) {
   btn.classList.toggle('recording', on);
 }
 
-function toggleMic() {
-  if (micState === 'recording')      stopRecording();
-  else if (micState === 'idle')      startRecording();
-  // Während 'loading' oder 'transcribing': Tap ignorieren
-}
+async function toggleMic() {
+  if (micState === 'recording')      { stopRecording(); return; }
+  if (micState !== 'idle')           return; // 'loading' oder 'transcribing': ignorieren
 
-async function startRecording() {
-  micState = 'loading';
-  setSync('syncing', 'Mikrofon wird angefragt…');
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch(e) {
-    setSync('err', 'Mikrofon-Zugriff verweigert');
+  // Erster Tap und Modell noch nicht da → erst nur das Modell laden,
+  // keine Aufnahme. Nächster Tap startet dann sofort die Aufnahme.
+  if (typeof window.whisperIsReady === 'function' && !window.whisperIsReady()) {
+    micState = 'loading';
+    setSync('syncing', 'Lädt Sprachmodell (einmalig, ~80 MB)…', true);
+    try {
+      await window.whisperPreload(handleModelProgress);
+      setSync('ok', 'Sprachmodell bereit — Mikro tippen zum Aufnehmen', false);
+    } catch(e) {
+      setSync('err', 'Modell konnte nicht geladen werden — Verbindung prüfen', false);
+    }
     micState = 'idle';
     return;
   }
 
-  // Modell parallel zur Aufnahme im Hintergrund vorladen (kein Block für den Start)
-  if (typeof window.whisperPreload === 'function') {
-    window.whisperPreload(handleModelProgress);
+  startRecording();
+}
+
+async function startRecording() {
+  micState = 'loading';
+  setSync('syncing', 'Mikrofon wird angefragt…', true);
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    setSync('err', 'Mikrofon-Zugriff verweigert', false);
+    micState = 'idle';
+    return;
   }
 
   recordChunks = [];
@@ -986,7 +1010,7 @@ async function startRecording() {
     mediaRecorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime })
                          : new MediaRecorder(mediaStream);
   } catch(e) {
-    setSync('err', 'Aufnahme konnte nicht gestartet werden');
+    setSync('err', 'Aufnahme konnte nicht gestartet werden', false);
     cleanupStream();
     micState = 'idle';
     return;
@@ -998,13 +1022,13 @@ async function startRecording() {
   mediaRecorder.start();
   micState = 'recording';
   paintMic(true);
-  setSync('syncing', 'Aufnahme läuft — Mikro tippen zum Stoppen');
+  setSync('syncing', 'Aufnahme läuft — Mikro tippen zum Stoppen', true);
   ta.focus();
 }
 
 function stopRecording() {
   if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-  setSync('syncing', 'Aufnahme wird beendet…');
+  setSync('syncing', 'Aufnahme wird beendet…', true);
   try { mediaRecorder.stop(); } catch(_) {}
   // onstop kümmert sich um den Rest
 }
@@ -1014,18 +1038,18 @@ async function onRecordingStopped() {
   paintMic(false);
 
   if (!recordChunks.length) {
-    setSync('ok', 'Nichts aufgenommen');
+    setSync('ok', 'Nichts aufgenommen', false);
     micState = 'idle';
     return;
   }
   micState = 'transcribing';
-  setSync('syncing', 'Transkribiere…');
+  setSync('syncing', 'Transkribiere…', true);
 
   const blob = new Blob(recordChunks, { type: recordChunks[0].type || 'audio/webm' });
   recordChunks = [];
 
   if (typeof window.whisperTranscribe !== 'function') {
-    setSync('err', 'Whisper-Modul nicht geladen');
+    setSync('err', 'Whisper-Modul nicht geladen', false);
     micState = 'idle';
     return;
   }
@@ -1035,7 +1059,7 @@ async function onRecordingStopped() {
     text = await window.whisperTranscribe(blob, handleModelProgress);
   } catch(e) {
     console.error(e);
-    setSync('err', 'Transkription fehlgeschlagen');
+    setSync('err', 'Transkription fehlgeschlagen', false);
     micState = 'idle';
     return;
   }
@@ -1045,9 +1069,9 @@ async function onRecordingStopped() {
     ta.value = existing ? existing + ' ' + text : text;
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
-    setSync('ok', 'Fertig');
+    setSync('ok', 'Fertig', false);
   } else {
-    setSync('ok', 'Kein Text erkannt');
+    setSync('ok', 'Kein Text erkannt', false);
   }
   micState = 'idle';
 }
@@ -1055,12 +1079,11 @@ async function onRecordingStopped() {
 function handleModelProgress(p) {
   if (!p) return;
   if (p.status === 'progress' && typeof p.progress === 'number') {
-    setSync('syncing', `Lädt Sprachmodell… ${Math.round(p.progress)} %`);
+    setSync('syncing', `Lädt Sprachmodell… ${Math.round(p.progress)} %`, true);
   } else if (p.status === 'download') {
-    setSync('syncing', `Lädt ${p.file || 'Modell'}…`);
-  } else if (p.status === 'ready') {
-    setSync('ok', 'Sprachmodell bereit');
+    setSync('syncing', `Lädt ${p.file || 'Modell'}…`, true);
   }
+  // 'ready'/'done' bewusst ignorieren — Folge-Statusmeldung kommt vom Aufrufer
 }
 
 function pickAudioMime() {
