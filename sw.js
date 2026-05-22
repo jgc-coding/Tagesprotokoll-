@@ -1,4 +1,4 @@
-const CACHE = 'protokoll-v10';
+const CACHE = 'protokoll-v11';
 const ASSETS = [
   '/Tagesprotokoll-/',
   '/Tagesprotokoll-/index.html',

@@ -5,8 +5,8 @@
   "start_url": "/Tagesprotokoll-/index.html",
   "scope": "/Tagesprotokoll-/",
   "display": "standalone",
-  "background_color": "#f5f0e8",
-  "theme_color": "#1a1612",
+  "background_color": "#f6f0d8",
+  "theme_color": "#5e8159",
   "orientation": "portrait",
   "icons": [
     {
