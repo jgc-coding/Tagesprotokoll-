@@ -344,7 +344,7 @@
   <div class="input-row">
     <span class="input-time" id="input-time">—</span>
     <textarea id="entry-input" rows="1" placeholder="Was ist gerade passiert?"></textarea>
-    <button class="mic-btn" id="mic-btn" onclick="toggleMic()" aria-label="Diktieren" title="Diktieren (Spracheingabe)">
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()" aria-label="Diktieren" title="Diktieren — lang drücken für API-Key">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
       </svg>
@@ -378,57 +378,56 @@
   <button class="bottom-btn danger" onclick="clearAll()">Leeren</button>
 </div>
 
-<!-- Whisper-Transkription (lokal im Browser über transformers.js) -->
-<script type="module">
-  const MODEL_ID = 'Xenova/whisper-base';
+<!-- Online-Transkription über Groq (whisper-large-v3) -->
+<script>
+  const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions';
+  const GROQ_MODEL    = 'whisper-large-v3';
+  const GROQ_KEY_STORE = 'groq_api_key';
 
-  let _pipelinePromise = null;
-  let _pipelineReady   = false;
-  async function getPipeline(onProgress) {
-    if (!_pipelinePromise) {
-      _pipelinePromise = (async () => {
-        const { pipeline, env } = await import(
-          'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm'
-        );
-        env.allowLocalModels = false;
-        env.useBrowserCache  = true;
-        const p = await pipeline('automatic-speech-recognition', MODEL_ID, {
-          progress_callback: onProgress,
-          quantized: true,
-        });
-        _pipelineReady = true;
-        return p;
-      })().catch(err => { _pipelinePromise = null; throw err; });
-    }
-    return _pipelinePromise;
+  function getGroqKey()      { return localStorage.getItem(GROQ_KEY_STORE) || ''; }
+  function setGroqKey(k)     { localStorage.setItem(GROQ_KEY_STORE, (k || '').trim()); }
+  function hasGroqKey()      { return getGroqKey().startsWith('gsk_'); }
+
+  function fileExtFor(blob) {
+    const t = blob.type || '';
+    if (t.includes('mp4'))  return 'mp4';
+    if (t.includes('ogg'))  return 'ogg';
+    if (t.includes('wav'))  return 'wav';
+    return 'webm';
   }
 
-  window.whisperIsReady = () => _pipelineReady;
-  window.whisperPreload = (cb) => getPipeline(cb).then(() => true).catch(() => false);
+  // Transkribiert einen Audio-Blob über die Groq-API. Wirft bei Fehlern.
+  async function transcribeViaGroq(blob) {
+    const key = getGroqKey();
+    if (!key) throw new Error('NO_KEY');
 
-  window.whisperTranscribe = async (blob, onProgress) => {
-    const transcriber = await getPipeline(onProgress);
-    const arrayBuf = await blob.arrayBuffer();
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    // 16 kHz mono ist das, was Whisper erwartet
-    const audioCtx = new Ctx({ sampleRate: 16000 });
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
-    const samples = audioBuffer.getChannelData(0);
-    audioCtx.close();
-    const result = await transcriber(samples, {
-      language: 'german',
-      task: 'transcribe',
-      chunk_length_s: 30,
-      stride_length_s: 5,
+    const fd = new FormData();
+    fd.append('file', blob, 'aufnahme.' + fileExtFor(blob));
+    fd.append('model', GROQ_MODEL);
+    fd.append('language', 'de');
+    fd.append('response_format', 'json');
+    // Content-Type NICHT setzen — der Browser ergänzt die multipart-boundary selbst
+    const res = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key },
+      body: fd,
     });
-    return (result && result.text ? result.text : '').trim();
-  };
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).error?.message || ''; } catch(_) {}
+      const err = new Error('HTTP ' + res.status + (detail ? ': ' + detail : ''));
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    return (data && data.text ? data.text : '').trim();
+  }
 </script>
 
 <script>
 // ─── APP VERSION ─────────────────────────────────────
 // Bei jedem Deploy um 1 erhöhen!
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
@@ -938,10 +937,10 @@ function quickEntry(text) {
   injectEntry(entry);
 }
 
-// ─── SPRACHEINGABE (Whisper, lokal im Browser) ───────
-// MediaRecorder nimmt Audio auf, transformers.js (im Modul-Script) lädt
-// Whisper-Base nach und transkribiert. Kein Auto-Stopp — der Nutzer
-// entscheidet, wann die Aufnahme zu Ende ist.
+// ─── SPRACHEINGABE (Groq · whisper-large-v3, online) ─
+// MediaRecorder nimmt Audio auf, der Blob geht an die Groq-API
+// (siehe transcribeViaGroq). Kein Auto-Stopp — der Nutzer entscheidet,
+// wann die Aufnahme endet. API-Key per Long-Press aufs Mikro.
 
 let mediaStream  = null;
 let mediaRecorder = null;
@@ -963,7 +962,27 @@ function initMic() {
     );
     return;
   }
-  btn.title = 'Diktieren (Whisper, lokal)';
+  btn.title = 'Diktieren (Groq · whisper-large-v3) — lang drücken für API-Key';
+
+  // Long-Press auf das Mikro öffnet die API-Key-Eingabe
+  let lpTimer = null, lpFired = false;
+  const startLP = () => {
+    lpFired = false;
+    lpTimer = setTimeout(() => {
+      lpFired = true;
+      if (micState === 'recording') stopRecording();
+      promptForGroqKey();
+    }, 650);
+  };
+  const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  btn.addEventListener('pointerdown', startLP);
+  btn.addEventListener('pointerup', cancelLP);
+  btn.addEventListener('pointerleave', cancelLP);
+  btn.addEventListener('pointercancel', cancelLP);
+  // Nach einem Long-Press den darauf folgenden Klick unterdrücken
+  btn.addEventListener('click', (e) => {
+    if (lpFired) { e.preventDefault(); e.stopImmediatePropagation(); lpFired = false; }
+  }, true);
 }
 
 function paintMic(on) {
@@ -975,22 +994,29 @@ async function toggleMic() {
   if (micState === 'recording')      { stopRecording(); return; }
   if (micState !== 'idle')           return; // 'loading' oder 'transcribing': ignorieren
 
-  // Erster Tap und Modell noch nicht da → erst nur das Modell laden,
-  // keine Aufnahme. Nächster Tap startet dann sofort die Aufnahme.
-  if (typeof window.whisperIsReady === 'function' && !window.whisperIsReady()) {
-    micState = 'loading';
-    setSync('syncing', 'Lädt Sprachmodell (einmalig, ~80 MB)…', true);
-    try {
-      await window.whisperPreload(handleModelProgress);
-      setSync('ok', 'Sprachmodell bereit — Mikro tippen zum Aufnehmen', false);
-    } catch(e) {
-      setSync('err', 'Modell konnte nicht geladen werden — Verbindung prüfen', false);
+  // Ohne API-Key keine Online-Transkription — einmalig erfassen
+  if (!hasGroqKey()) {
+    if (!promptForGroqKey()) {
+      setSync('err', 'Kein API-Key — Diktat nicht möglich', false);
+      return;
     }
-    micState = 'idle';
-    return;
   }
 
   startRecording();
+}
+
+// Fragt den Groq-Key ab und speichert ihn. Gibt true zurück, wenn ein
+// gültig aussehender Key (gsk_…) hinterlegt wurde.
+function promptForGroqKey() {
+  const current = getGroqKey();
+  const input = window.prompt(
+    'Groq API-Key einfügen (beginnt mit gsk_…).\n' +
+    'Wird nur lokal auf diesem Gerät gespeichert.',
+    current
+  );
+  if (input === null) return hasGroqKey(); // Abbruch: vorhandenen Key behalten
+  setGroqKey(input);
+  return hasGroqKey();
 }
 
 async function startRecording() {
@@ -1043,23 +1069,17 @@ async function onRecordingStopped() {
     return;
   }
   micState = 'transcribing';
-  setSync('syncing', 'Transkribiere…', true);
+  setSync('syncing', 'Transkribiere (Groq · large-v3)…', true);
 
   const blob = new Blob(recordChunks, { type: recordChunks[0].type || 'audio/webm' });
   recordChunks = [];
 
-  if (typeof window.whisperTranscribe !== 'function') {
-    setSync('err', 'Whisper-Modul nicht geladen', false);
-    micState = 'idle';
-    return;
-  }
-
   let text = '';
   try {
-    text = await window.whisperTranscribe(blob, handleModelProgress);
+    text = await transcribeViaGroq(blob);
   } catch(e) {
     console.error(e);
-    setSync('err', 'Transkription fehlgeschlagen', false);
+    setSync('err', describeGroqError(e), false);
     micState = 'idle';
     return;
   }
@@ -1076,14 +1096,15 @@ async function onRecordingStopped() {
   micState = 'idle';
 }
 
-function handleModelProgress(p) {
-  if (!p) return;
-  if (p.status === 'progress' && typeof p.progress === 'number') {
-    setSync('syncing', `Lädt Sprachmodell… ${Math.round(p.progress)} %`, true);
-  } else if (p.status === 'download') {
-    setSync('syncing', `Lädt ${p.file || 'Modell'}…`, true);
-  }
-  // 'ready'/'done' bewusst ignorieren — Folge-Statusmeldung kommt vom Aufrufer
+function describeGroqError(e) {
+  const msg = (e && e.message) || '';
+  if (msg === 'NO_KEY')                 return 'Kein API-Key hinterlegt';
+  if (e && e.status === 401)            return 'API-Key ungültig — Mikro lang drücken zum Ändern';
+  if (e && e.status === 429)            return 'Groq-Limit erreicht — kurz warten';
+  if (e && (e.status === 413))          return 'Aufnahme zu lang (max. 25 MB)';
+  if (msg.includes('Failed to fetch') ||
+      msg.includes('NetworkError'))     return 'Verbindung/CORS fehlgeschlagen — Proxy nötig?';
+  return 'Transkription fehlgeschlagen';
 }
 
 function pickAudioMime() {
