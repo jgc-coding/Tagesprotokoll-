@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Design C · Karten</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#f1f3f8;--card:#fff;--ink:#1f2433;--muted:#8a93a6;--line:#e6e9f0;--accent:#4f46e5;--accent2:#eef0fe;--green:#22c55e}
+  html,body{height:100%}
+  body{background:#d8dce6;font-family:'Inter',system-ui,sans-serif;color:var(--ink);display:flex;flex-direction:column;align-items:center}
+  .switch{position:sticky;top:0;z-index:10;width:100%;max-width:430px;display:flex;gap:6px;padding:8px;background:#c2c8d6}
+  .switch a{flex:1;text-align:center;padding:8px;border-radius:10px;font-size:12px;text-decoration:none;color:#5a6072;background:#e7eaf1;font-weight:500}
+  .switch a.on{background:var(--accent);color:#fff}
+  .app{width:100%;max-width:430px;flex:1;display:flex;flex-direction:column;background:var(--bg);min-height:0}
+  .topbar{padding:1.1rem 1.2rem .4rem}
+  .topbar h1{font-size:1.4rem;font-weight:700;letter-spacing:-.02em}
+  .topbar .date{font-size:.8rem;color:var(--muted);margin-top:2px}
+  .input-wrap{padding:.6rem 1rem .3rem}
+  .input-row{display:flex;gap:.5rem;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:.55rem .6rem .55rem .9rem;box-shadow:0 4px 14px rgba(31,36,51,.06)}
+  .input-row input{flex:1;background:transparent;border:none;outline:none;font-family:'Inter',sans-serif;font-size:.95rem;color:var(--ink)}
+  .input-row input::placeholder{color:var(--muted)}
+  .mic,.add{width:2.2rem;height:2.2rem;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;border:none}
+  .mic{background:var(--accent2);color:var(--accent)}.mic svg{width:1rem;height:1rem}
+  .mic.rec{background:var(--accent);color:#fff;animation:pulse 1.3s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(79,70,229,.45)}70%{box-shadow:0 0 0 10px rgba(79,70,229,0)}100%{box-shadow:0 0 0 0 rgba(79,70,229,0)}}
+  .add{background:var(--accent);color:#fff;font-size:1.2rem}
+  .chips{display:flex;gap:.5rem;overflow-x:auto;padding:.7rem 1rem .3rem;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{background:var(--accent2);border:none;color:var(--accent);font-size:.78rem;font-weight:500;padding:.42rem .85rem;border-radius:16px;white-space:nowrap;cursor:pointer}
+  .entries{flex:1;overflow-y:auto;padding:.4rem 1rem 1rem;min-height:0}
+  .sep{padding:.7rem .2rem .4rem;font-size:.72rem;font-weight:700;color:var(--muted);letter-spacing:.04em}
+  .entry{display:flex;gap:.7rem;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:.8rem .9rem;margin-bottom:.6rem;box-shadow:0 2px 8px rgba(31,36,51,.04)}
+  .entry .t{flex-shrink:0;background:var(--accent2);color:var(--accent);font-size:.72rem;font-weight:600;padding:.2rem .5rem;border-radius:10px;height:fit-content}
+  .entry .x{font-size:.9rem;line-height:1.45}
+  .bottom{margin:.4rem 1rem 1rem;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:.7rem 1.1rem;display:flex;align-items:center;gap:.5rem;box-shadow:0 4px 14px rgba(31,36,51,.07)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+  .stat{font-size:.8rem;color:var(--muted);flex:1}
+  .bbtn{background:none;border:none;font-family:'Inter',sans-serif;font-size:.85rem;color:var(--ink)}
+  .bbtn.p{color:var(--accent);font-weight:600}
+</style>
+</head>
+<body>
+<nav class="switch"><a href="a.html">A · Sonnenaufgang</a><a href="b.html">B · Mitternacht</a><a href="c.html" class="on">C · Karten</a></nav>
+<div class="app">
+  <div class="topbar"><h1>Tagesprotokoll</h1><div class="date" id="dt">Dienstag, 22. Mai · 14:32</div></div>
+  <div class="input-wrap"><div class="input-row">
+    <input id="inp" placeholder="Was ist gerade passiert?">
+    <button class="mic" id="mic" onclick="this.classList.toggle('rec')"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg></button>
+    <button class="add" onclick="addRow()">＋</button>
+  </div></div>
+  <div class="chips" id="chips"></div>
+  <div class="entries"><div class="sep">HEUTE</div><div id="list"></div></div>
+  <div class="bottom"><div class="dot"></div><div class="stat">Bereit</div><button class="bbtn">Archiv</button><button class="bbtn p">Export</button></div>
+</div>
+<script>
+const CHIPS=["Wasserhahn an","Material geholt","Pause","Kunde info."];
+const ROWS=[["14:18","Heizung im Bad angeschlossen, Druck geprüft."],["13:50","Material vom Großhandel geholt."],["12:30","Mittagspause."],["11:05","Wasserhahn Küche montiert — dicht."]];
+chips.innerHTML=CHIPS.map(c=>`<button class="chip" onclick="document.getElementById('inp').value='${c}'">${c}</button>`).join('');
+function render(){list.innerHTML=ROWS.map(r=>`<div class="entry"><span class="t">${r[0]}</span><div class="x">${r[1]}</div></div>`).join('')}
+function addRow(){const v=inp.value.trim();if(!v)return;const t=new Date().toTimeString().slice(0,5);ROWS.unshift([t,v]);inp.value='';render()}
+render();
+</script>
+</body>
+</html>
