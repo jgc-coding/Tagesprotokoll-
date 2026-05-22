@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1a1612">
+<meta name="theme-color" content="#f6f0d8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Protokoll">
@@ -14,15 +14,36 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Warme Palette (Gelb · Creme · Salbei · Hellgrün) — Standard: hell */
   :root {
-    --bg: #f5f0e8;
-    --paper: #faf7f2;
-    --ink: #1a1612;
-    --muted: #9a8f82;
-    --accent: #c0392b;
-    --green: #2d6a4f;
-    --line: #e2ddd6;
-    --shadow: rgba(26,22,18,0.08);
+    --bg: #f6f0d8;
+    --paper: #fffdf4;
+    --ink: #3c5538;
+    --muted: #86926f;
+    --accent: #5e8159;
+    --green: #5e8159;
+    --warm: #ead36a;
+    --danger: #b5654a;
+    --line: #e6ddba;
+    --shadow: rgba(94,129,89,0.12);
+    --glow: rgba(234,211,106,0.40);
+    --on-accent: #fffdf4;
+  }
+
+  /* Dunkler Modus — gleiche Palette, dunkler Grund */
+  html[data-theme="dark"] {
+    --bg: #1b201a;
+    --paper: #262c22;
+    --ink: #e9ecdb;
+    --muted: #8c977a;
+    --accent: #9cc06f;
+    --green: #9cc06f;
+    --warm: #ead36a;
+    --danger: #d98b6f;
+    --line: #39402f;
+    --shadow: rgba(0,0,0,0.45);
+    --glow: rgba(234,211,106,0.14);
+    --on-accent: #1b201a;
   }
 
   html { height: 100%; }
@@ -34,60 +55,72 @@
     color: var(--ink);
     display: flex;
     flex-direction: column;
-    background-image: radial-gradient(ellipse at 80% 0%, rgba(192,57,43,0.05) 0%, transparent 55%);
+    background-image: radial-gradient(ellipse at 50% 0%, var(--glow) 0%, transparent 55%);
+    transition: background-color 0.25s, color 0.25s;
   }
 
   /* TOP BAR */
   .topbar {
-    background: var(--ink);
-    color: var(--bg);
-    padding: 0.85rem 1.2rem;
+    background: transparent;
+    color: var(--ink);
+    padding: 0.9rem 1.2rem 0.6rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
-    gap: 0.8rem;
+    gap: 0.7rem;
   }
   .topbar-left { display: flex; align-items: baseline; gap: 0.7rem; flex: 1; min-width: 0; }
   .topbar h1 {
     font-family: 'Fraunces', serif;
-    font-weight: 600; font-size: 1.2rem;
+    font-weight: 600; font-size: 1.3rem;
     letter-spacing: -0.01em; line-height: 1; flex-shrink: 0;
   }
   .topbar-date {
-    font-size: 0.63rem; color: rgba(245,240,232,0.5);
+    font-size: 0.63rem; color: var(--muted);
     letter-spacing: 0.05em; text-transform: uppercase;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .topbar-clock {
     font-family: 'Fraunces', serif; font-style: italic;
-    font-weight: 300; font-size: 1.35rem; color: var(--accent); flex-shrink: 0;
+    font-weight: 300; font-size: 1.4rem; color: var(--accent); flex-shrink: 0;
   }
+  .gear-btn {
+    background: none; border: 1px solid var(--line); color: var(--accent);
+    width: 2rem; height: 2rem; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: transform 0.15s;
+  }
+  .gear-btn svg { width: 1.1rem; height: 1.1rem; }
+  .gear-btn:active { transform: scale(0.9) rotate(30deg); }
 
   /* INPUT */
   .input-wrap {
     background: var(--paper);
-    border-bottom: 1.5px solid var(--line);
-    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    margin: 0.5rem 1rem 0.75rem;
+    padding: 0.9rem;
     flex-shrink: 0;
-    box-shadow: 0 2px 10px var(--shadow);
+    box-shadow: 0 2px 12px var(--shadow);
   }
   .input-row { display: flex; gap: 0.6rem; align-items: flex-end; }
   .input-time {
     font-size: 0.68rem; color: var(--accent);
-    white-space: nowrap; padding-bottom: 0.5rem;
+    white-space: nowrap; padding-bottom: 0.55rem;
     letter-spacing: 0.03em; min-width: 38px; flex-shrink: 0;
   }
   #entry-input {
     flex: 1; background: transparent; border: none; outline: none;
-    font-family: 'DM Mono', monospace; font-size: 1rem;
+    font-family: 'DM Mono', monospace; font-size: 1.05rem;
     color: var(--ink); resize: none; line-height: 1.5;
-    min-height: 2rem; max-height: 5.5rem; -webkit-appearance: none;
+    min-height: 5.5rem; max-height: 11rem; align-self: stretch;
+    padding-top: 0.15rem; -webkit-appearance: none;
   }
   #entry-input::placeholder { color: var(--muted); }
   .add-btn {
-    background: var(--accent); color: white; border: none;
-    width: 2.4rem; height: 2.4rem; font-size: 1.3rem; line-height: 1;
+    background: var(--accent); color: var(--on-accent); border: none;
+    width: 3rem; height: 3rem; font-size: 1.7rem; line-height: 1;
     cursor: pointer; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.2s; -webkit-tap-highlight-color: transparent;
@@ -95,32 +128,31 @@
   .add-btn:active { transform: scale(0.92); }
 
   .mic-btn {
-    background: var(--paper); color: var(--ink);
+    background: var(--paper); color: var(--accent);
     border: 1px solid var(--line);
-    width: 2.4rem; height: 2.4rem; line-height: 1;
+    width: 3rem; height: 3rem; line-height: 1;
     cursor: pointer; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     transition: background 0.2s, color 0.2s, border-color 0.2s;
     -webkit-tap-highlight-color: transparent;
   }
-  .mic-btn svg { width: 1.05rem; height: 1.05rem; }
+  .mic-btn svg { width: 1.4rem; height: 1.4rem; }
   .mic-btn:active { transform: scale(0.92); }
   .mic-btn.recording {
-    background: var(--accent); color: white; border-color: var(--accent);
+    background: var(--warm); color: #5e5320; border-color: var(--warm);
     animation: micpulse 1.3s ease-out infinite;
   }
   .mic-btn.unsupported { opacity: 0.35; cursor: not-allowed; }
   @keyframes micpulse {
-    0%   { box-shadow: 0 0 0 0   rgba(192,57,43,0.45); }
-    70%  { box-shadow: 0 0 0 10px rgba(192,57,43,0);    }
-    100% { box-shadow: 0 0 0 0   rgba(192,57,43,0);    }
+    0%   { box-shadow: 0 0 0 0   rgba(234,211,106,0.6); }
+    70%  { box-shadow: 0 0 0 12px rgba(234,211,106,0);   }
+    100% { box-shadow: 0 0 0 0   rgba(234,211,106,0);    }
   }
 
   /* QUICK ENTRIES */
   .quick-wrap {
-    background: var(--bg);
-    border-bottom: 1.5px solid var(--line);
-    padding: 0.55rem 1rem;
+    background: transparent;
+    padding: 0 1rem 0.65rem;
     flex-shrink: 0;
     display: flex;
     gap: 0.45rem;
@@ -132,10 +164,10 @@
   .quick-btn {
     background: var(--paper);
     border: 1px solid var(--line);
-    color: var(--ink);
+    color: var(--accent);
     font-family: 'DM Mono', monospace;
     font-size: 0.7rem;
-    padding: 0.38rem 0.75rem;
+    padding: 0.4rem 0.78rem;
     border-radius: 20px;
     cursor: pointer;
     white-space: nowrap;
@@ -146,9 +178,9 @@
   }
   .quick-btn:active { transform: scale(0.95); }
   .quick-btn.flash {
-    background: var(--green) !important;
-    color: white !important;
-    border-color: var(--green) !important;
+    background: var(--accent) !important;
+    color: var(--on-accent) !important;
+    border-color: var(--accent) !important;
   }
 
   /* ENTRIES */
@@ -179,7 +211,7 @@
     margin-top: 0.1rem; flex-shrink: 0; transition: color 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
-  .del-btn:active { color: var(--accent); }
+  .del-btn:active { color: var(--danger); }
 
   /* EMPTY */
   .empty { text-align: center; padding: 3rem 1rem; color: var(--muted); }
@@ -201,7 +233,7 @@
   }
   .sync-dot.ok      { background: var(--green); }
   .sync-dot.syncing { background: #e67e22; animation: blink 1s infinite; }
-  .sync-dot.err     { background: var(--accent); }
+  .sync-dot.err     { background: var(--danger); }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
   #sync-text {
     color: var(--muted); font-size: 0.63rem; letter-spacing: 0.04em;
@@ -223,7 +255,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .bottom-btn:active { border-color: var(--ink); color: var(--ink); }
-  .bottom-btn.danger { color: var(--accent); border-color: rgba(192,57,43,0.3); }
+  .bottom-btn.danger { color: var(--danger); border-color: var(--danger); }
 
   .app-version {
     color: var(--muted);
@@ -306,7 +338,7 @@
     padding: 0.12rem 0.45rem; border-radius: 2px;
     font-weight: 500; letter-spacing: 0.06em;
   }
-  .archive-format.pdf { background: var(--accent); }
+  .archive-format.pdf { background: var(--danger); }
   .archive-format.md  { background: var(--green); }
   .archive-date  { color: var(--muted); }
   .archive-size  { color: var(--muted); margin-left: auto; }
@@ -322,13 +354,111 @@
     -webkit-tap-highlight-color: transparent;
   }
   .archive-actions button.danger {
-    color: var(--accent); border-color: rgba(192,57,43,0.3);
+    color: var(--danger); border-color: var(--danger);
   }
   .archive-actions button:active { transform: scale(0.96); }
   .bottom-btn.active {
-    background: var(--ink); color: var(--bg); border-color: var(--ink);
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  }
+
+  /* ─── SETTINGS MODAL ─── */
+  .modal {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(20,24,16,0.45);
+    display: none; align-items: flex-end; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .modal.open { display: flex; }
+  .modal-card {
+    background: var(--bg); width: 100%; max-width: 480px;
+    max-height: 92vh; overflow-y: auto;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -4px 30px rgba(0,0,0,0.25);
+    -webkit-overflow-scrolling: touch;
+    animation: slideup 0.22s ease;
+  }
+  @keyframes slideup { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-head {
+    position: sticky; top: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.1rem 1.2rem 0.7rem; z-index: 2;
+  }
+  .modal-head span {
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.25rem; color: var(--ink);
+  }
+  .modal-close {
+    background: none; border: 1px solid var(--line); color: var(--ink);
+    width: 1.9rem; height: 1.9rem; border-radius: 50%; cursor: pointer;
+    font-size: 0.85rem; flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+  }
+  .modal-body { padding: 0 1.2rem 1.6rem; }
+  .set-sec { padding: 0.9rem 0; border-top: 1px solid var(--line); }
+  .set-sec h3 {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--muted); margin-bottom: 0.7rem; font-weight: 500;
+  }
+  .set-hint { font-size: 0.66rem; color: var(--muted); line-height: 1.5; margin-top: 0.4rem; }
+
+  .seg { display: flex; gap: 0.4rem; }
+  .seg button {
+    flex: 1; background: var(--paper); border: 1px solid var(--line); color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 0.78rem; padding: 0.6rem 0.4rem;
+    border-radius: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .seg button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+  .qedit-item {
+    display: flex; align-items: center; gap: 0.45rem;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 10px; padding: 0.45rem 0.6rem; margin-bottom: 0.4rem;
+  }
+  .qedit-item .label { flex: 1; font-size: 0.82rem; color: var(--ink); word-break: break-word; }
+  .qedit-item button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1rem; padding: 0.1rem 0.35rem; flex-shrink: 0; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qedit-item button.del { color: var(--danger); }
+  .qedit-item button:disabled { opacity: 0.25; cursor: default; }
+
+  .field-row { display: flex; gap: 0.45rem; margin-top: 0.5rem; }
+  .field-row input {
+    flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--line);
+    color: var(--ink); font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    padding: 0.55rem 0.7rem; border-radius: 10px; outline: none; -webkit-appearance: none;
+  }
+  .field-row input::placeholder { color: var(--muted); }
+  .field-row button, .backup-btns button {
+    background: var(--accent); color: var(--on-accent); border: none;
+    font-family: 'DM Mono', monospace; font-size: 0.78rem; padding: 0.55rem 0.85rem;
+    border-radius: 10px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .backup-btns { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+  .backup-btns button.ghost {
+    background: var(--paper); color: var(--ink); border: 1px solid var(--line);
+  }
+  .set-about {
+    text-align: center; font-size: 0.62rem; color: var(--muted);
+    letter-spacing: 0.05em; padding-top: 1rem;
   }
 </style>
+<script>
+  /* Theme so früh wie möglich setzen, damit nichts aufblitzt */
+  (function(){
+    try {
+      var t = localStorage.getItem('proto_theme') || 'light';
+      var dark = t === 'dark' ||
+        (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dark) {
+        document.documentElement.setAttribute('data-theme','dark');
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', '#1b201a');
+      }
+    } catch(_){}
+  })();
+</script>
 </head>
 <body>
 
@@ -338,6 +468,11 @@
     <span class="topbar-date" id="top-date">—</span>
   </div>
   <div class="topbar-clock" id="top-clock">—</div>
+  <button class="gear-btn" onclick="openSettings()" aria-label="Einstellungen" title="Einstellungen">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M19.14 12.94a7.49 7.49 0 0 0 .05-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.43h-3.84a.5.5 0 0 0-.5.43l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.49 7.49 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54a.5.5 0 0 0 .5.43h3.84a.5.5 0 0 0 .5-.43l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/>
+    </svg>
+  </button>
 </div>
 
 <div class="input-wrap">
@@ -376,6 +511,62 @@
     </div>
   </div>
   <button class="bottom-btn danger" onclick="clearAll()">Leeren</button>
+</div>
+
+<!-- EINSTELLUNGEN -->
+<div class="modal" id="settings-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span>Einstellungen</span>
+      <button class="modal-close" onclick="closeSettings()" aria-label="Schließen">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <section class="set-sec">
+        <h3>Design</h3>
+        <div class="seg" id="theme-seg">
+          <button data-theme-val="light">Hell</button>
+          <button data-theme-val="dark">Dunkel</button>
+          <button data-theme-val="auto">Automatisch</button>
+        </div>
+      </section>
+
+      <section class="set-sec">
+        <h3>Schnellauswahl</h3>
+        <div id="quick-edit-list"></div>
+        <div class="field-row">
+          <input id="quick-add-input" placeholder="Neue Schnellauswahl…" maxlength="60">
+          <button onclick="addQuickItem()">Hinzufügen</button>
+        </div>
+        <p class="set-hint">Mit ▲▼ umsortieren, ✕ löscht. Reihenfolge = Anzeige in der Leiste.</p>
+      </section>
+
+      <section class="set-sec">
+        <h3>Diktat (Sprache → Text)</h3>
+        <div class="field-row">
+          <input id="api-key-input" type="password" placeholder="Groq API-Key (gsk_…)" autocomplete="off">
+          <button onclick="saveApiKeyFromSettings()">Speichern</button>
+        </div>
+        <p class="set-hint" id="api-key-status"></p>
+      </section>
+
+      <section class="set-sec">
+        <h3>Sicherung &amp; Speicherort</h3>
+        <div id="folder-backup-area"></div>
+        <div class="backup-btns">
+          <button onclick="downloadBackup()">↓ Backup speichern</button>
+          <button class="ghost" onclick="document.getElementById('restore-file').click()">↑ Backup laden</button>
+          <input type="file" id="restore-file" accept="application/json,.json" hidden onchange="restoreBackup(event)">
+        </div>
+        <p class="set-hint" id="backup-info"></p>
+      </section>
+
+      <section class="set-sec set-about">
+        Tagesprotokoll · v<span id="set-version">–</span>
+      </section>
+
+    </div>
+  </div>
 </div>
 
 <!-- Online-Transkription über Groq (whisper-large-v3) -->
@@ -427,7 +618,7 @@
 <script>
 // ─── APP VERSION ─────────────────────────────────────
 // Bei jedem Deploy um 1 erhöhen!
-const APP_VERSION = 11;
+const APP_VERSION = 12;
 
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
@@ -451,7 +642,7 @@ setInterval(tick, 15000);
 // ─── TEXTAREA AUTO-RESIZE ────────────────────────────
 ta.addEventListener('input', () => {
   ta.style.height = 'auto';
-  ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
+  ta.style.height = Math.min(ta.scrollHeight, 176) + 'px';
 });
 ta.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addEntry(); }
@@ -463,6 +654,7 @@ function save() {
     localStorage.setItem('proto_v2', JSON.stringify(entries));
     const t = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
     setSync('ok', `Gespeichert · ${t}`);
+    if (typeof maybeFolderBackup === 'function') maybeFolderBackup();
   } catch(e) { setSync('err', 'Speichern fehlgeschlagen!'); }
 }
 function scheduleSave() {
@@ -898,7 +1090,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ─── QUICK ENTRIES ───────────────────────────────────
-const QUICK = [
+const QUICK_DEFAULT = [
   'Ende der vorherigen Aktion',
   'Wasserhahn an',
   'Wasserhahn aus',
@@ -906,9 +1098,26 @@ const QUICK = [
   'Tür aufmachen',
   'Boden wischen',
 ];
+const QUICK_STORE = 'proto_quick';
+let QUICK = loadQuick();
+
+function loadQuick() {
+  try {
+    const raw = localStorage.getItem(QUICK_STORE);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.filter(x => typeof x === 'string');
+    }
+  } catch(_) {}
+  return [...QUICK_DEFAULT];
+}
+function saveQuick() {
+  try { localStorage.setItem(QUICK_STORE, JSON.stringify(QUICK)); } catch(_) {}
+}
 
 function buildQuickBar() {
   const wrap = document.getElementById('quick-wrap');
+  wrap.innerHTML = '';
   QUICK.forEach(label => {
     const btn = document.createElement('button');
     btn.className = 'quick-btn';
@@ -1088,7 +1297,7 @@ async function onRecordingStopped() {
     const existing = ta.value.trim();
     ta.value = existing ? existing + ' ' + text : text;
     ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 88) + 'px';
+    ta.style.height = Math.min(ta.scrollHeight, 176) + 'px';
     setSync('ok', 'Fertig', false);
   } else {
     setSync('ok', 'Kein Text erkannt', false);
@@ -1226,6 +1435,269 @@ initMic();
 renderAll();
 const n = entries.length;
 setSync('ok', n ? `${n} Eintrag${n !== 1 ? 'e' : ''} geladen` : 'Bereit');
+</script>
+
+<script>
+// ═══ EINSTELLUNGEN · THEME · SICHERUNG ═══════════════
+
+// ─── THEME ───────────────────────────────────────────
+const THEME_STORE = 'proto_theme';
+const _mql = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+
+function getThemePref() { return localStorage.getItem(THEME_STORE) || 'light'; }
+
+function applyTheme(pref) {
+  const dark = pref === 'dark' || (pref === 'auto' && _mql && _mql.matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', dark ? '#1b201a' : '#f6f0d8');
+}
+function setTheme(pref) {
+  localStorage.setItem(THEME_STORE, pref);
+  applyTheme(pref);
+  renderThemeSeg();
+}
+function renderThemeSeg() {
+  const pref = getThemePref();
+  document.querySelectorAll('#theme-seg button').forEach(b => {
+    b.classList.toggle('on', b.dataset.themeVal === pref);
+  });
+}
+if (_mql) {
+  const onChange = () => { if (getThemePref() === 'auto') applyTheme('auto'); };
+  _mql.addEventListener ? _mql.addEventListener('change', onChange) : _mql.addListener(onChange);
+}
+
+// ─── SETTINGS PANEL ──────────────────────────────────
+function openSettings() {
+  document.getElementById('set-version').textContent = APP_VERSION;
+  renderThemeSeg();
+  renderQuickEdit();
+  document.getElementById('api-key-input').value = '';
+  renderApiKeyStatus();
+  renderBackupArea();
+  setBackupInfo('');
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+document.getElementById('settings-modal').addEventListener('click', e => {
+  if (e.target.id === 'settings-modal') closeSettings();
+});
+
+// ─── SCHNELLAUSWAHL BEARBEITEN ───────────────────────
+function renderQuickEdit() {
+  const box = document.getElementById('quick-edit-list');
+  box.innerHTML = '';
+  if (!QUICK.length) {
+    box.innerHTML = '<p class="set-hint">Noch keine Schnellauswahl.</p>';
+    return;
+  }
+  QUICK.forEach((label, i) => {
+    const row = document.createElement('div');
+    row.className = 'qedit-item';
+    row.innerHTML =
+      `<button data-act="up"   title="Nach oben"  ${i === 0 ? 'disabled' : ''}>▲</button>` +
+      `<button data-act="down" title="Nach unten" ${i === QUICK.length - 1 ? 'disabled' : ''}>▼</button>` +
+      `<span class="label"></span>` +
+      `<button class="del" data-act="del" title="Löschen">✕</button>`;
+    row.querySelector('.label').textContent = label;
+    row.querySelector('[data-act="up"]').onclick   = () => moveQuick(i, -1);
+    row.querySelector('[data-act="down"]').onclick = () => moveQuick(i, 1);
+    row.querySelector('[data-act="del"]').onclick  = () => removeQuickItem(i);
+    box.appendChild(row);
+  });
+}
+function commitQuick() { saveQuick(); buildQuickBar(); renderQuickEdit(); }
+function addQuickItem() {
+  const inp = document.getElementById('quick-add-input');
+  const v = inp.value.trim();
+  if (!v) return;
+  QUICK.push(v);
+  inp.value = '';
+  commitQuick();
+}
+function removeQuickItem(i) { QUICK.splice(i, 1); commitQuick(); }
+function moveQuick(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= QUICK.length) return;
+  [QUICK[i], QUICK[j]] = [QUICK[j], QUICK[i]];
+  commitQuick();
+}
+
+// ─── DIKTAT-KEY ──────────────────────────────────────
+function renderApiKeyStatus() {
+  const el = document.getElementById('api-key-status');
+  el.textContent = hasGroqKey()
+    ? '✓ Key hinterlegt — Diktat ist aktiv.'
+    : 'Kein Key hinterlegt. Ohne Key kein Sprach-Diktat. Kostenlos bei console.groq.com.';
+}
+function saveApiKeyFromSettings() {
+  const inp = document.getElementById('api-key-input');
+  const v = inp.value.trim();
+  if (v) setGroqKey(v);
+  inp.value = '';
+  renderApiKeyStatus();
+}
+
+// ─── BACKUP (Datei) ──────────────────────────────────
+function backupPayload() {
+  return JSON.stringify({
+    app: 'tagesprotokoll',
+    version: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    entries: entries,
+    quick: QUICK,
+    theme: getThemePref(),
+  }, null, 2);
+}
+function setBackupInfo(msg) {
+  const el = document.getElementById('backup-info');
+  if (el) el.textContent = msg || '';
+}
+function downloadBackup() {
+  download(`tagesprotokoll-backup_${todayStamp()}.json`, backupPayload(), 'application/json');
+  setBackupInfo(`Backup gespeichert · ${entries.length} Einträge.`);
+}
+function restoreBackup(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch(_) { alert('Datei konnte nicht gelesen werden — kein gültiges Backup.'); return; }
+    if (!data || !Array.isArray(data.entries)) {
+      alert('Kein gültiges Tagesprotokoll-Backup.'); return;
+    }
+    if (!confirm(`Backup laden?\n\nErsetzt die aktuellen ${entries.length} Einträge durch ${data.entries.length} aus der Datei.`)) return;
+    entries = data.entries;
+    if (Array.isArray(data.quick)) {
+      QUICK.length = 0;
+      data.quick.forEach(q => { if (typeof q === 'string') QUICK.push(q); });
+      saveQuick(); buildQuickBar(); renderQuickEdit();
+    }
+    if (data.theme) setTheme(data.theme);
+    save();
+    renderAll();
+    setBackupInfo(`Backup geladen · ${entries.length} Einträge.`);
+    closeSettings();
+  };
+  reader.readAsText(file);
+}
+
+// ─── ORDNER-AUTO-SICHERUNG (File System Access API) ──
+// Nur Desktop-Chrome/Edge. Auf Android/Safari nicht verfügbar → Datei-Backup.
+let _dirHandle = null;
+const FS_SUPPORTED = (typeof window.showDirectoryPicker === 'function');
+
+function fsDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('proto_fs', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function fsSet(key, val) {
+  const d = await fsDB();
+  return new Promise((res, rej) => {
+    const tx = d.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(val, key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  });
+}
+async function fsGet(key) {
+  const d = await fsDB();
+  return new Promise((res) => {
+    const tx = d.transaction('kv', 'readonly');
+    const rq = tx.objectStore('kv').get(key);
+    rq.onsuccess = () => res(rq.result || null); rq.onerror = () => res(null);
+  });
+}
+async function fsDel(key) {
+  const d = await fsDB();
+  return new Promise((res) => {
+    const tx = d.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = () => res(); tx.onerror = () => res();
+  });
+}
+async function ensurePermission(h) {
+  if (!h) return false;
+  const opts = { mode: 'readwrite' };
+  if ((await h.queryPermission(opts))   === 'granted') return true;
+  if ((await h.requestPermission(opts)) === 'granted') return true;
+  return false;
+}
+async function chooseBackupFolder() {
+  if (!FS_SUPPORTED) return;
+  try {
+    const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+    _dirHandle = h;
+    await fsSet('dir', h);
+    await writeFolderBackup();
+    renderBackupArea();
+    setBackupInfo('Ordner verbunden — Auto-Sicherung aktiv.');
+  } catch(_) { /* Auswahl abgebrochen */ }
+}
+async function disconnectBackupFolder() {
+  _dirHandle = null;
+  await fsDel('dir');
+  renderBackupArea();
+  setBackupInfo('Ordner getrennt.');
+}
+async function writeFolderBackup() {
+  if (!_dirHandle) return;
+  try {
+    if (!(await ensurePermission(_dirHandle))) return;
+    const fh = await _dirHandle.getFileHandle('tagesprotokoll-backup.json', { create: true });
+    const w  = await fh.createWritable();
+    await w.write(backupPayload());
+    await w.close();
+  } catch(e) { console.warn('Ordner-Backup fehlgeschlagen:', e); }
+}
+// Wird aus save() aufgerufen
+function maybeFolderBackup() { if (FS_SUPPORTED && _dirHandle) writeFolderBackup(); }
+
+function renderBackupArea() {
+  const area = document.getElementById('folder-backup-area');
+  if (!area) return;
+  if (!FS_SUPPORTED) {
+    area.innerHTML =
+      '<p class="set-hint">Automatische Ordner-Sicherung ist auf diesem Gerät nicht verfügbar ' +
+      '(z.B. Android, iPhone). Nutze „Backup speichern“ — die Datei kannst du in deiner Cloud ' +
+      'oder im Dateien-Ordner ablegen und mit „Backup laden“ jederzeit wiederherstellen.</p>';
+    return;
+  }
+  if (_dirHandle) {
+    area.innerHTML =
+      `<p class="set-hint">✓ Ordner verbunden: <b></b>. Jede Änderung wird automatisch dorthin gesichert.</p>` +
+      `<div class="backup-btns" style="margin-top:.5rem"><button class="ghost" id="fs-disconnect">Ordner trennen</button></div>`;
+    area.querySelector('b').textContent = _dirHandle.name || 'Ordner';
+    document.getElementById('fs-disconnect').onclick = disconnectBackupFolder;
+  } else {
+    area.innerHTML =
+      `<p class="set-hint">Wähle einen Ordner für die automatische Sicherung (z.B. einen Cloud-Ordner).</p>` +
+      `<div class="backup-btns" style="margin-top:.5rem"><button id="fs-choose">📁 Ordner wählen</button></div>`;
+    document.getElementById('fs-choose').onclick = chooseBackupFolder;
+  }
+}
+async function initFolderBackup() {
+  if (!FS_SUPPORTED) return;
+  try { _dirHandle = await fsGet('dir'); } catch(_) { _dirHandle = null; }
+}
+
+// ─── INIT (Einstellungen) ────────────────────────────
+document.querySelectorAll('#theme-seg button').forEach(b => {
+  b.addEventListener('click', () => setTheme(b.dataset.themeVal));
+});
+document.getElementById('quick-add-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addQuickItem(); }
+});
+initFolderBackup();
 </script>
 </body>
 </html>
