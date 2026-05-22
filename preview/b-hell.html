@@ -18,7 +18,8 @@
   .topbar h1{font-family:'Fraunces',serif;font-weight:600;font-size:1.3rem;color:var(--text)}
   .topbar .date{font-size:.6rem;color:var(--muted);letter-spacing:.12em;margin-top:2px}
   .clock{font-size:1.3rem;color:var(--accent)}
-  .rt{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+  .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+  .themes{display:flex;gap:5px}
   .theme{font-size:.6rem;text-decoration:none;color:var(--accent);border:1px solid var(--line);border-radius:20px;padding:.2rem .55rem;letter-spacing:.05em}
   .hr{height:1px;background:var(--line);margin:.4rem 1.2rem}
   .input-wrap{padding:.4rem 1rem .75rem}
@@ -50,7 +51,7 @@
 <body>
 <nav class="switch"><a href="a.html">A · Sonnenaufgang</a><a href="b-hell.html" class="on">B · Mitternacht</a><a href="c.html">C · Karten</a></nav>
 <div class="app">
-  <div class="topbar"><div><h1>Tagesprotokoll</h1><div class="date">DI · 22. MAI 2026</div></div><div class="rt"><a class="theme" href="b.html">☾ Dunkel</a><div class="clock" id="clk">14:32</div></div></div>
+  <div class="topbar"><div><h1>Tagesprotokoll</h1><div class="date">DI · 22. MAI 2026</div></div><div class="rt"><div class="themes"><a class="theme" href="b.html">☾ Dunkel</a><a class="theme" href="b-warm.html">☼ Warm</a></div><div class="clock" id="clk">14:32</div></div></div>
   <div class="hr"></div>
   <div class="input-wrap"><div class="input-row">
     <textarea id="inp" rows="3" placeholder="Was ist gerade passiert?"></textarea>
