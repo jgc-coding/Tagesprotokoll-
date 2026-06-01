@@ -1,4 +1,5 @@
-const CACHE = 'protokoll-v11';
+// Nummer == APP_VERSION in index.html halten, dann nur eine Zahl im Kopf.
+const CACHE = 'protokoll-v14';
 const ASSETS = [
   '/Tagesprotokoll-/',
   '/Tagesprotokoll-/index.html',

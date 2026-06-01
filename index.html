@@ -473,6 +473,17 @@
     font-size: 0.95rem; color: var(--ink); line-height: 1.55; min-height: 6rem;
     resize: vertical; outline: none; -webkit-appearance: none;
   }
+  .edit-time-row {
+    display: flex; align-items: center; gap: 0.6rem; margin-top: 0.7rem;
+    font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .edit-time-row input {
+    background: var(--paper); border: 1px solid var(--line); color: var(--ink);
+    font-family: 'DM Mono', monospace; font-size: 0.95rem;
+    padding: 0.45rem 0.6rem; border-radius: 10px; outline: none;
+    -webkit-appearance: none; color-scheme: light dark;
+  }
   .action-btns { display: flex; gap: 0.5rem; margin-top: 1rem; }
   .action-btns button {
     flex: 1; background: var(--accent); color: var(--on-accent); border: none;
@@ -668,14 +679,26 @@
 
 <script>
 // ─── APP VERSION ─────────────────────────────────────
-// Bei jedem Deploy um 1 erhöhen!
-const APP_VERSION = 13;
+// Bei jedem Deploy um 1 erhöhen — UND dieselbe Nummer in sw.js (CACHE) setzen.
+const APP_VERSION = 14;
 
 // ─── STATE ───────────────────────────────────────────
 let entries   = JSON.parse(localStorage.getItem('proto_v2') || '[]');
 let saveTimer = null;
 const ta      = document.getElementById('entry-input');
 const addBtn  = document.getElementById('add-btn');
+
+// Monotone, kollisionsfreie IDs: Date.now() kann bei schnellen Eingaben
+// (z.B. zwei Schnellauswahl-Chips kurz hintereinander) denselben ms liefern
+// → gleiche data-id → Bearbeiten/Löschen trifft den falschen Eintrag.
+// Hochzählen ab der höchsten vorhandenen ID verhindert das.
+let _lastId = entries.reduce((m, e) => Math.max(m, Number(e.id) || 0), 0);
+function nextId() {
+  let id = Date.now();
+  if (id <= _lastId) id = _lastId + 1;
+  _lastId = id;
+  return id;
+}
 
 // ─── CLOCK ───────────────────────────────────────────
 function tick() {
@@ -686,6 +709,8 @@ function tick() {
     n.toLocaleDateString('de-DE', { weekday:'short', day:'numeric', month:'short' });
   document.getElementById('input-time').textContent =
     n.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+  // Falls die App über Mitternacht offen bleibt: Tages-Trenner aktualisieren
+  if (!document.body.classList.contains('view-archive')) relabelSeparators();
 }
 tick();
 setInterval(tick, 15000);
@@ -739,7 +764,7 @@ function addEntry() {
   // Eintrag erstellen
   const now = new Date();
   const entry = {
-    id:   Date.now(),
+    id:   nextId(),
     date: now.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }),
     time: now.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }),
     text, iso: now.toISOString()
@@ -758,6 +783,20 @@ function addEntry() {
   setTimeout(() => ta.blur(), 80);
 }
 
+function todayKey() {
+  return new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+// Trenner-Beschriftung neu setzen: nur der heutige Tag heißt „Heute".
+// Verhindert, dass nach Mitternacht ein veralteter „Heute"-Trenner stehen
+// bleibt (App über Tageswechsel offen).
+function relabelSeparators() {
+  const today = todayKey();
+  document.querySelectorAll('.date-sep').forEach(s => {
+    s.textContent = s.dataset.date === today ? 'Heute' : s.dataset.date;
+  });
+}
+
 // ─── DOM: neuen Eintrag einbauen ─────────────────────
 function injectEntry(entry) {
   const wrap  = document.getElementById('entries-wrap');
@@ -772,7 +811,6 @@ function injectEntry(entry) {
     sep = document.createElement('div');
     sep.className = 'date-sep';
     sep.dataset.date = today;
-    sep.textContent = 'Heute';
     wrap.insertBefore(sep, wrap.firstChild);
   }
 
@@ -784,6 +822,9 @@ function injectEntry(entry) {
     `<div class="entry-time">${entry.time}</div>` +
     `<div class="entry-text">${esc(entry.text)}</div>`;
   sep.insertAdjacentElement('afterend', div);
+
+  // Labels nach möglichem Tageswechsel korrigieren
+  relabelSeparators();
 
   wrap.scrollTop = 0;
 }
@@ -804,7 +845,7 @@ function renderAll() {
   // Unsichtbarer empty-state als Referenz
   wrap.insertAdjacentHTML('beforeend', '<div id="empty-state" style="display:none"></div>');
 
-  const today = new Date().toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const today = todayKey();
   const groups = {};
   entries.forEach(e => { (groups[e.date] = groups[e.date] || []).push(e); });
 
@@ -1185,7 +1226,7 @@ function buildQuickBar() {
 function quickEntry(text) {
   const now = new Date();
   const entry = {
-    id:   Date.now(),
+    id:   nextId(),
     date: now.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }),
     time: now.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }),
     text, iso: now.toISOString()
@@ -1775,12 +1816,18 @@ function editActiveEntry() {
   const body = document.getElementById('entry-modal-body');
   body.innerHTML =
     `<textarea class="edit-area" id="entry-edit-text"></textarea>` +
+    `<div class="edit-time-row">` +
+      `<label for="entry-edit-time">Uhrzeit</label>` +
+      `<input type="time" id="entry-edit-time">` +
+    `</div>` +
     `<div class="action-btns">` +
       `<button class="ghost" onclick="closeEntryModal()">Abbrechen</button>` +
       `<button onclick="saveActiveEntry()">Speichern</button>` +
     `</div>`;
   const t = document.getElementById('entry-edit-text');
   t.value = entry.text;
+  // entry.time ist bereits "HH:MM" (24h, de-DE) — passt zu <input type="time">
+  document.getElementById('entry-edit-time').value = entry.time;
   t.focus();
   t.setSelectionRange(t.value.length, t.value.length);
 }
@@ -1790,17 +1837,43 @@ function saveActiveEntry() {
   if (!entry) { closeEntryModal(); return; }
   const v = document.getElementById('entry-edit-text').value.trim();
   if (!v) { deleteActiveEntry(); return; }
+
+  // Uhrzeit ggf. übernehmen (Format "HH:MM"). Bei Änderung wandert auch der
+  // iso-Stempel mit, damit Sortierung/Export stimmen.
+  let timeChanged = false;
+  const timeEl = document.getElementById('entry-edit-time');
+  if (timeEl && /^\d{1,2}:\d{2}$/.test(timeEl.value)) {
+    const [h, m] = timeEl.value.split(':');
+    const newTime = h.padStart(2, '0') + ':' + m;
+    if (newTime !== entry.time) {
+      entry.time = newTime;
+      const d = new Date(entry.iso || Date.now());
+      d.setHours(Number(h), Number(m), 0, 0);
+      entry.iso = d.toISOString();
+      timeChanged = true;
+    }
+  }
+
   entry.text = v;
   scheduleSave();
+  closeEntryModal();
+
+  if (timeChanged) {
+    // Reihenfolge an die neue Zeit anpassen (neueste zuerst) und neu zeichnen
+    entries.sort((a, b) => (b.iso || '').localeCompare(a.iso || '') || (Number(b.id) - Number(a.id)));
+    renderAll();
+  }
   const el = document.querySelector(`.entry[data-id="${entry.id}"]`);
   if (el) {
-    const txt = el.querySelector('.entry-text');
-    if (txt) txt.innerHTML = esc(v);
+    if (!timeChanged) {
+      const txt = el.querySelector('.entry-text');
+      if (txt) txt.innerHTML = esc(v);
+    }
     el.classList.remove('flash-edit');
     void el.offsetWidth;
     el.classList.add('flash-edit');
+    if (timeChanged) el.scrollIntoView({ block: 'nearest' });
   }
-  closeEntryModal();
 }
 
 function deleteActiveEntry() {

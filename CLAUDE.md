@@ -45,6 +45,12 @@ Repo: `jgc-coding/tagesprotokoll-` (Remote-Zugriff nur auf diese Repo erlaubt).
   setzt `data-theme` früh, damit nichts aufblitzt.
 - **Einträge bearbeiten/löschen**: Langdruck (~500 ms) auf einen Eintrag
   öffnet ein Aktions-Fenster mit *Bearbeiten* und *Löschen*. Kein festes ✕.
+  Im Bearbeiten-Dialog lässt sich auch die **Uhrzeit nachträglich ändern**
+  (`<input type="time">`); der `iso`-Stempel wandert mit, und die Liste wird
+  bei Zeitänderung per `entries.sort` (iso absteigend) neu sortiert.
+- **IDs**: Einträge bekommen ihre `id` über `nextId()` (monoton, basierend auf
+  `Date.now()` aber kollisionsfrei) — verhindert doppelte `data-id` bei
+  schnellen Eingaben.
 - **Zeitstrahl-Optik**: Einträge an einer durchgehenden Linie mit Punkten
   (`.entry::before`/`::after`), Zeit links, Text rechts.
 - **PWA**: Service Worker mit network-first für HTML, cache-first für Assets.
@@ -107,8 +113,9 @@ Bei jedem Push, der Code/Assets verändert, **beide hochzählen**:
 - `index.html` → `const APP_VERSION = N;` (zeigt sich in der Fußzeile als `vN`)
 - `sw.js`      → `const CACHE = 'protokoll-vN';`
 
-Aktueller Stand: **APP_VERSION 13, CACHE `protokoll-v11`** (Stand nach
-Commit `b80bc70`).
+Aktueller Stand: **APP_VERSION 14, CACHE `protokoll-v14`**.
+Ab v14 sind beide Nummern **bewusst identisch gehalten** — nur noch eine Zahl
+im Kopf behalten, bei jedem Deploy beide auf denselben Wert setzen.
 
 HTML wird per network-first geladen → App-Updates kommen sofort an.
 Andere Assets (Icons, Manifest, sw.js) liegen im Cache; deshalb die
@@ -136,13 +143,16 @@ vorgeschlagen (noch offen):
 
 - **Hinweis-Tooltip** für den Langdruck (Bearbeiten ist aktuell nicht
   selbsterklärend) — Nutzer hatte das als offene Frage stehen.
-- **Sicherheitsabfrage beim Löschen** im neuen Aktions-Fenster: ja/nein —
-  offene Frage an den Nutzer.
 - **Dauer zwischen Einträgen** automatisch anzeigen (passt zur
   Schnellauswahl „Ende der vorherigen Aktion").
 - **Suchen/Filtern** in den Einträgen.
 - **Foto pro Eintrag** anhängen.
 - **Mehrere Schnellauswahl-Sets** (z.B. je Baustelle/Kunde umschaltbar).
+
+Erledigt (v14): Eintrag-Zeit nachträglich änderbar; ID-Kollision behoben
+(`nextId()`); Mitternachts-Trenner korrigiert (`relabelSeparators`);
+Cache-/App-Version gekoppelt. Sicherheitsabfrage beim Löschen war bereits
+via `confirm()` in `deleteEntry` vorhanden.
 
 ---
 
